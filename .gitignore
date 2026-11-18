@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Saves and local records
+saves/
+
+# Environment / IDE
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+
+# Godot specific
+.godot/
+export/
+*.translation
+
+# OS Generated
+Thumbs.db
+Desktop.ini
+.DS_Store

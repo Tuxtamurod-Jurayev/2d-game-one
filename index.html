@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pixel Runner — 2D Game 01</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f0c1e;
+      color: #fff;
+      font-family: 'Consolas', 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    h1 {
+      color: #00f0ff;
+      margin-bottom: 12px;
+      font-size: 24px;
+      letter-spacing: 2px;
+    }
+    canvas {
+      background: #1a1033;
+      border: 3px solid #00f0ff;
+      border-radius: 8px;
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.35);
+      max-width: 95vw;
+      max-height: 75vh;
+    }
+    .footer {
+      margin-top: 14px;
+      color: #a096be;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>PIXEL RUNNER — 2D GAME 01</h1>
+  <canvas id="gameCanvas" width="960" height="540"></canvas>
+  <div class="footer">SPACE / Touch: Jump | DOWN: Duck / Slide | ESC: Pause</div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const GROUND_Y = 430;
+    const GRAVITY = 0.85;
+    const JUMP_FORCE = -15.0;
+
+    let state = "MENU"; // MENU, PLAYING, GAMEOVER
+    let speed = 7.0;
+    let score = 0;
+    let highScore = parseInt(localStorage.getItem("pixel_runner_hi") || "0", 10);
+    let coins = 0;
+    let screenShake = 0;
+
+    // Player
+    const player = {
+      x: 120,
+      y: GROUND_Y,
+      vy: 0,
+      w: 38,
+      h: 52,
+      isGrounded: true,
+      isDucking: false,
+      tick: 0,
+      particles: []
+    };
+
+    let obstacles = [];
+    let coinList = [];
+    let spawnTimer = 0;
+    let groundOffset = 0;
+
+    // Audio Synth via Web Audio API
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let actx = null;
+    function initAudio() {
+      if (!actx) actx = new AudioCtx();
+    }
+    function playBeep(freq, type, duration, endFreq) {
+      if (!actx) return;
+      try {
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, actx.currentTime);
+        if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, actx.currentTime + duration);
+        gain.gain.setValueAtTime(0.2, actx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, actx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(actx.destination);
+        osc.start();
+        osc.stop(actx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function resetGame() {
+      player.y = GROUND_Y;
+      player.vy = 0;
+      player.isGrounded = true;
+      player.isDucking = false;
+      player.particles = [];
+      obstacles = [];
+      coinList = [];
+      speed = 7.0;
+      score = 0;
+      coins = 0;
+      spawnTimer = 0;
+      state = "PLAYING";
+    }
+
+    // Input handlers
+    const keys = {};
+    window.addEventListener("keydown", (e) => {
+      initAudio();
+      keys[e.code] = true;
+
+      if (e.code === "Space" || e.code === "ArrowUp") {
+        if (state === "MENU" || state === "GAMEOVER") {
+          resetGame();
+        } else if (state === "PLAYING" && player.isGrounded && !player.isDucking) {
+          player.vy = JUMP_FORCE;
+          player.isGrounded = false;
+          playBeep(320, "square", 0.15, 750);
+        }
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      keys[e.code] = false;
+    });
+
+    canvas.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      initAudio();
+      if (state === "MENU" || state === "GAMEOVER") {
+        resetGame();
+      } else if (state === "PLAYING" && player.isGrounded) {
+        player.vy = JUMP_FORCE;
+        player.isGrounded = false;
+        playBeep(320, "square", 0.15, 750);
+      }
+    });
+
+    function update() {
+      if (state !== "PLAYING") return;
+
+      player.isDucking = (keys["ArrowDown"] || keys["KeyS"]) && player.isGrounded;
+      player.vy += (player.isDucking ? GRAVITY * 2 : GRAVITY);
+      player.y += player.vy;
+
+      if (player.y >= GROUND_Y) {
+        player.y = GROUND_Y;
+        player.vy = 0;
+        player.isGrounded = true;
+      }
+
+      if (speed < 16.0) speed += 0.0015;
+      score += speed * 0.1;
+      if (score > highScore) {
+        highScore = Math.floor(score);
+        localStorage.setItem("pixel_runner_hi", highScore);
+      }
+
+      groundOffset = (groundOffset + speed) % 40;
+      player.tick++;
+
+      // Spawning
+      spawnTimer++;
+      const minInterval = Math.max(50, 110 - (speed - 7) * 5);
+      if (spawnTimer >= minInterval) {
+        spawnTimer = 0;
+        if (Math.random() < 0.75) {
+          const isDrone = speed > 8.5 && Math.random() < 0.35;
+          obstacles.push({
+            x: canvas.width + 30,
+            y: isDrone ? GROUND_Y - 40 : GROUND_Y,
+            w: isDrone ? 42 : (Math.random() < 0.5 ? 26 : 48),
+            h: isDrone ? 24 : 46,
+            isDrone: isDrone
+          });
+        } else {
+          coinList.push({
+            x: canvas.width + 30,
+            y: GROUND_Y - (Math.random() < 0.5 ? 30 : 80),
+            r: 12
+          });
+        }
+      }
+
+      // Check obstacle collisions
+      const pw = player.isDucking ? 54 : 38;
+      const ph = player.isDucking ? 26 : 52;
+      const px = player.x - pw / 2;
+      const py = player.y - ph;
+
+      for (let i = 0; i < obstacles.length; i++) {
+        const o = obstacles[i];
+        o.x -= speed;
+        const ox = o.x;
+        const oy = o.y - o.h;
+        if (px + pw > ox + 4 && px < ox + o.w - 4 && py + ph > oy + 4 && py < oy + o.h) {
+          playBeep(140, "sawtooth", 0.3, 40);
+          screenShake = 15;
+          state = "GAMEOVER";
+          break;
+        }
+      }
+      obstacles = obstacles.filter(o => o.x + o.w > -50);
+
+      // Coins
+      for (let i = 0; i < coinList.length; i++) {
+        const c = coinList[i];
+        c.x -= speed;
+        if (px + pw > c.x - c.r && px < c.x + c.r && py + ph > c.y - c.r && py < c.y + c.r) {
+          coins++;
+          score += 100;
+          playBeep(980, "sine", 0.15, 1318);
+          coinList.splice(i, 1);
+          i--;
+        }
+      }
+      coinList = coinList.filter(c => c.x > -50);
+
+      if (screenShake > 0) screenShake--;
+    }
+
+    function draw() {
+      ctx.save();
+      if (screenShake > 0) {
+        ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+      }
+
+      // Sky
+      ctx.fillStyle = "#150c1e";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Ground
+      ctx.fillStyle = "#1e192d";
+      ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+
+      // Neon horizon line
+      ctx.strokeStyle = "#00f0ff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y);
+      ctx.lineTo(canvas.width, GROUND_Y);
+      ctx.stroke();
+
+      // Grid stripes
+      ctx.strokeStyle = "#46286e";
+      ctx.lineWidth = 2;
+      for (let x = -40; x < canvas.width + 40; x += 40) {
+        const gx = x - groundOffset;
+        ctx.beginPath();
+        ctx.moveTo(gx, GROUND_Y);
+        ctx.lineTo(gx - 30, canvas.height);
+        ctx.stroke();
+      }
+
+      // Coins
+      coinList.forEach(c => {
+        ctx.fillStyle = "#ffdc00";
+        ctx.beginPath();
+        ctx.arc(c.x, c.y + Math.sin(player.tick * 0.1) * 4, c.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Obstacles
+      obstacles.forEach(o => {
+        if (o.isDrone) {
+          ctx.fillStyle = "#ffb400";
+          ctx.fillRect(o.x, o.y - o.h, o.w, o.h);
+        } else {
+          ctx.fillStyle = "#ff2d6e";
+          ctx.fillRect(o.x, o.y - o.h, o.w, o.h);
+        }
+      });
+
+      // Player
+      const pw = player.isDucking ? 54 : 38;
+      const ph = player.isDucking ? 26 : 52;
+      ctx.fillStyle = player.isDucking ? "#00c8f0" : "#00ffb4";
+      ctx.fillRect(player.x - pw / 2, player.y - ph, pw, ph);
+      // Eye
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(player.x + pw / 2 - 12, player.y - ph + 8, 8, 8);
+
+      // HUD
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 20px Consolas";
+      ctx.fillText(`SCORE: ${String(Math.floor(score)).padStart(6, '0')}`, 25, 35);
+      ctx.fillStyle = "#00f0ff";
+      ctx.fillText(`HI: ${String(Math.floor(highScore)).padStart(6, '0')}`, canvas.width - 160, 35);
+      ctx.fillStyle = "#ffd700";
+      ctx.fillText(`COINS: ${coins}`, 25, 65);
+
+      // Overlays
+      if (state === "MENU") {
+        ctx.fillStyle = "rgba(15, 12, 30, 0.85)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "bold 44px Consolas";
+        ctx.textAlign = "center";
+        ctx.fillText("PIXEL RUNNER", canvas.width / 2, 200);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 22px Consolas";
+        ctx.fillText("PRESS SPACE TO PLAY", canvas.width / 2, 280);
+        ctx.textAlign = "left";
+      } else if (state === "GAMEOVER") {
+        ctx.fillStyle = "rgba(25, 5, 15, 0.85)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ff2d6e";
+        ctx.font = "bold 44px Consolas";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", canvas.width / 2, 190);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 22px Consolas";
+        ctx.fillText(`FINAL SCORE: ${Math.floor(score)}`, canvas.width / 2, 250);
+        ctx.fillStyle = "#00f0ff";
+        ctx.fillText("PRESS SPACE TO RESTART", canvas.width / 2, 310);
+        ctx.textAlign = "left";
+      }
+
+      ctx.restore();
+      requestAnimationFrame(loop);
+    }
+
+    function loop() {
+      update();
+      draw();
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
