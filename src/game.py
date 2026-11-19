@@ -1,3 +1,8 @@
+"""
+Main Game Controller for Pixel Runner (Modern Edition).
+Structured State Machine: MENU -> PLAYING -> PAUSED -> GAME_OVER.
+Optimized for 60 FPS gameplay, responsive input, and dynamic effects.
+"""
 import random
 import pygame
 from src.settings import (
@@ -5,7 +10,7 @@ from src.settings import (
     INITIAL_SPEED, MAX_SPEED, SPEED_INCREMENT, GROUND_Y
 )
 from src.sound_synth import SoundManager
-from src.entities.player import Player
+from src.entities.player import Player, Particle
 from src.entities.obstacle import Obstacle
 from src.entities.coin import Coin
 from src.world.background import Background
@@ -36,15 +41,20 @@ class Game:
         self.speed = INITIAL_SPEED
         self.obstacles = []
         self.coins = []
+        self.coin_sparkles = []
         self.spawn_timer = 0
         self.screen_shake = 0
         self.running = True
+
+        # Pre-allocated shake surface for high performance
+        self.shake_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def reset_game(self):
         self.player.reset()
         self.score_mgr.reset_current()
         self.obstacles.clear()
         self.coins.clear()
+        self.coin_sparkles.clear()
         self.speed = INITIAL_SPEED
         self.spawn_timer = 0
         self.screen_shake = 0
@@ -76,17 +86,16 @@ class Game:
 
     def spawn_entities(self):
         self.spawn_timer += 1
-        # Minimum distance based on speed
-        min_spawn_interval = max(55, int(110 - (self.speed - INITIAL_SPEED) * 5))
+        # Dynamic spawn cadence based on speed
+        min_spawn_interval = max(50, int(105 - (self.speed - INITIAL_SPEED) * 5.2))
         
         if self.spawn_timer >= min_spawn_interval:
             self.spawn_timer = 0
             
-            # 75% Obstacle, 25% Coin row
-            roll = random.random()
-            if roll < 0.75:
-                # Choose obstacle type
-                if self.speed > 8.5 and random.random() < 0.35:
+            # 75% Obstacle spawn, 25% Coin pattern
+            if random.random() < 0.75:
+                # Drone spawns once speed exceeds 8.2
+                if self.speed > 8.2 and random.random() < 0.38:
                     obs_type = Obstacle.TYPE_FLYING_DRONE
                 else:
                     obs_type = random.choice([
@@ -97,46 +106,46 @@ class Game:
                 self.obstacles.append(Obstacle(obs_type, SCREEN_WIDTH + 50))
             else:
                 # Spawn coin arc or row
-                coin_y = GROUND_Y - 30 if random.random() < 0.5 else GROUND_Y - 80
-                for i in range(3):
-                    self.coins.append(Coin(SCREEN_WIDTH + 50 + i * 40, coin_y))
+                coin_y = GROUND_Y - 35 if random.random() < 0.55 else GROUND_Y - 85
+                count = random.randint(3, 4)
+                for i in range(count):
+                    self.coins.append(Coin(SCREEN_WIDTH + 50 + i * 36, coin_y))
 
     def update(self):
         if self.state != self.STATE_PLAYING:
             return
 
         keys = pygame.key.get_pressed()
-        self.player.update(keys)
+        self.player.update(keys, speed_factor=self.speed)
 
-        # Speed progression
+        # Gradual speed progression
         if self.speed < MAX_SPEED:
             self.speed += SPEED_INCREMENT
 
-        # Score increments by travel distance
+        # Score increments with distance
         self.score_mgr.add_score(self.speed * 0.1)
 
-        # Milestone chime every 1000 pts
+        # Milestone chime every 1000 points
         if int(self.score_mgr.current_score) > 0 and int(self.score_mgr.current_score) % 1000 < 5:
             self.sound_mgr.play_checkpoint()
 
         self.background.update(self.speed)
         self.spawn_entities()
 
-        # Update obstacles
+        # Update obstacles & collision
         player_rect = self.player.rect
         for obs in self.obstacles:
             obs.update(self.speed)
-            # Collision check
             if player_rect.colliderect(obs.rect):
                 self.sound_mgr.play_hit()
-                self.screen_shake = 18
+                self.screen_shake = 16
                 self.score_mgr.save_high_score()
                 self.state = self.STATE_GAME_OVER
                 break
 
         self.obstacles = [obs for obs in self.obstacles if not obs.is_offscreen()]
 
-        # Update coins
+        # Update coins & pickup sparkle effect
         for coin in self.coins:
             coin.update(self.speed)
             if not coin.collected and player_rect.colliderect(coin.rect):
@@ -144,54 +153,76 @@ class Game:
                 self.score_mgr.add_coin()
                 self.sound_mgr.play_coin()
 
+                # Golden pickup sparkle burst
+                for _ in range(8):
+                    self.coin_sparkles.append(Particle(
+                        coin.x, coin.y,
+                        random.uniform(-3, 3),
+                        random.uniform(-3, 3),
+                        random.choice([(255, 235, 80), (255, 255, 200), (0, 240, 255)]),
+                        random.uniform(3, 6),
+                        lifetime=18,
+                        decay_rate=0.25
+                    ))
+
         self.coins = [c for c in self.coins if not c.is_offscreen() and not c.collected]
+
+        # Update coin sparkles
+        for p in self.coin_sparkles:
+            p.update()
+        self.coin_sparkles = [p for p in self.coin_sparkles if p.is_alive()]
 
         # Decay screen shake
         if self.screen_shake > 0:
             self.screen_shake -= 1
 
     def draw(self):
-        # Apply screen shake offset if active
-        shake_x = random.randint(-self.screen_shake, self.screen_shake) if self.screen_shake > 0 else 0
-        shake_y = random.randint(-self.screen_shake, self.screen_shake) if self.screen_shake > 0 else 0
-
-        draw_surf = self.screen
-        if shake_x != 0 or shake_y != 0:
-            draw_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Determine render target
+        if self.screen_shake > 0:
+            target_surf = self.shake_surface
+        else:
+            target_surf = self.screen
 
         # 1. Background
-        self.background.draw(draw_surf)
+        self.background.draw(target_surf)
 
         # 2. Coins
         for coin in self.coins:
-            coin.draw(draw_surf)
+            coin.draw(target_surf)
 
-        # 3. Obstacles
+        # 3. Coin Sparkle Particles
+        for p in self.coin_sparkles:
+            p.draw(target_surf)
+
+        # 4. Obstacles
         for obs in self.obstacles:
-            obs.draw(draw_surf)
+            obs.draw(target_surf)
 
-        # 4. Player
-        self.player.draw(draw_surf)
+        # 5. Humanoid Player
+        self.player.draw(target_surf)
 
-        # 5. HUD
-        self.hud.draw(draw_surf, self.score_mgr, self.speed)
+        # 6. Modern HUD
+        self.hud.draw(target_surf, self.score_mgr, self.speed)
 
-        # 6. Overlays
+        # 7. State Overlays
         if self.state == self.STATE_MENU:
-            self.menu.draw_start_menu(draw_surf)
+            self.menu.draw_start_menu(target_surf)
         elif self.state == self.STATE_PAUSED:
-            self.menu.draw_pause(draw_surf)
+            self.menu.draw_pause(target_surf)
         elif self.state == self.STATE_GAME_OVER:
             self.menu.draw_game_over(
-                draw_surf,
+                target_surf,
                 self.score_mgr.current_score,
                 self.score_mgr.high_score,
                 self.score_mgr.coins
             )
 
-        if shake_x != 0 or shake_y != 0:
-            self.screen.fill((0, 0, 0))
-            self.screen.blit(draw_surf, (shake_x, shake_y))
+        # Apply screen shake blit if active
+        if self.screen_shake > 0:
+            ox = random.randint(-self.screen_shake, self.screen_shake)
+            oy = random.randint(-self.screen_shake, self.screen_shake)
+            self.screen.fill((10, 8, 20))
+            self.screen.blit(self.shake_surface, (ox, oy))
 
         pygame.display.flip()
 

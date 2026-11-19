@@ -2,22 +2,31 @@
 
 Ushbu repozitoriy 12 ta ketma-ket murakkablashib boruvchi 2D o‘yin loyihalarini o‘z ichiga oladi.
 
-## 🕹️ 01-Loyiha: Pixel Runner
+## 🕹️ 01-Loyiha: Pixel Runner (Modern Humanoid Edition)
 
-Roadmap'dagi 1-loyiha — **Pixel Runner** (Cyberpunk/Retro uslubidagi cheksiz yugurish va to‘siqlardan sakrash o‘yini).
+Roadmap'dagi 1-loyiha — **Pixel Runner** zamonaviy inson qahramoni va shaffof (glassmorphism) interfeysi bilan yangilandi.
 
-### ✨ Xususiyatlari:
+### ✨ Yangilangan va Optimallashtirilgan Xususiyatlar:
+* **Humanoid Personaj & Harakat:**
+  * O‘yinchi to‘liq odam qiyofasiga (bosh, soch, yuz, kiber-kostyum/jaket, oyoq va qo‘llar) o‘tkazildi.
+  * Odam anatomiyasiga mos yugurish sikli (oyoqlar bo‘g‘inlari, tizzalar bukilishi, qo‘llarning qadamga teskari fazada tebranishi).
+  * Dinamik sakrash (havoda oyoqlar yig‘ilishi, shamolda soch tebranishi, yerga tushganda chang effekti).
+  * Zamonaviy sirpanish/egilish (Slide: pastki qavatga tushish, dronlar ostidan xavfsiz sirpanib o‘tish va uchqunlar).
+* **Zamonaviy Qo‘lda Chizilgan Ikonalar (No AI):**
+  * 🏆 **Trophy Icon:** Rekord uchun oltin kubok nishoni.
+  * 🪙 **Coin Icon:** Oltin tangalar shaffof pill-panellar ichida.
+  * ⚡ **Speed Icon:** O‘yin tezligi dinamik indikatori.
+  * 🏃 **Runner Icon:** Chopuvchi inson silueti.
+  * ⏸️ **Pause Icon:** Minimalist pauza belgisi.
+* **Minimalist Glassmorphism UI:**
+  * Quti-quti eski dizayndan voz kechilib, zamonaviy shaffof xiralashtirilgan (frosted glass) panellar va nozik neon hoshiyalar qo‘llandi.
+  * Oltin tanga yig‘ilganda uchqunli chaqnash effektlari.
 * **Physics & Controls:**
-  * `SPACE` yoki `UP` / `W`: Sakrash (sakrash kuchi va dinamik havo fizikasi).
-  * `DOWN` yoki `S`: Sirpanish / egilish (pastlab uchuvchi dronlar ostidan o‘tish).
-  * `ESC`: O‘yinni pauza qilish.
-* **Protsedurali to‘siqlar:** Kichik/katta yer to‘siqlari hamda havodan uchuvchi kiber-dronlar.
-* **Bonus Tizimi:** Oltin tangalar (Coins) yig‘ish (+100 ball har bir tangaga).
-* **Tezlik progressiyasi:** Masofa oshgan sari o‘yin tezligi silliq oshib boradi.
-* **8-bit Sintezlangan Ovoz:** Hech qanday tashqi audio fayllarsiz, Python ichida avtomatik sintezlanadigan ovoz effektlari (sakrash, tanga olish, urilish, checkpoint).
-* **Parallax Background:** Neon ufq chizig‘i, siluet binolar va yulduzli osmon.
-* **Saqlash tizimi:** Eng yuqori rekord (`saves/highscore.json`) avtomatik saqlanadi.
-* **HTML5 Versiya:** Brauzerda to‘g‘ridan-to‘g‘ri o‘ynash uchun `index.html` ham mavjud.
+  * `SPACE` yoki `UP` / `W`: Sakrash.
+  * `DOWN` yoki `S`: Sirpanish / Egilish.
+  * `ESC`: Pauza / Davom ettirish.
+* **8-bit Sintezlangan Ovoz:** Tashqi audio fayllarsiz toza matematik to‘lqinlar.
+* **HTML5 Versiya:** Brauzerda to‘liq inson qiyofasi va yangi UI bilan o‘ynash uchun `index.html`.
 
 ---
 
