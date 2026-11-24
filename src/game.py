@@ -1,18 +1,17 @@
 """
-Main Game Controller for Pixel Runner (Multi-Stage Modern Edition).
+Main Game Controller for Pixel Runner (Subway Heroes Edition).
 Features:
-- Structured State Machine: MENU -> PLAYING -> PAUSED -> GAME_OVER.
-- Double Jump system with acrobatic aerial somersault.
-- 4 Progressive Stages (Cyber Dawn -> Sunset Metropolis -> Neon Nightfall -> Apex Overdrive).
-- Reactive UI that dynamically changes its themes and banners on each stage.
-- 60 FPS smooth gameplay and zero-flicker background.
+- Character Selection: JAKE, TRICKY, FRESH, YUTANI.
+- Progressive Double Jump with 360-degree somersault.
+- 4 Multi-Stage Levels with dynamic UI and sky transitions.
+- High-performance, 60 FPS gameplay, non-flickering background.
 """
 import random
 import pygame
 from src.settings import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS, TITLE,
     INITIAL_SPEED, MAX_SPEED, SPEED_INCREMENT, GROUND_Y,
-    STAGES
+    STAGES, CHARACTERS
 )
 from src.sound_synth import SoundManager
 from src.entities.player import Player, Particle
@@ -40,7 +39,10 @@ class Game:
         self.background = Background()
         self.hud = HUD()
         self.menu = Menu()
-        self.player = Player()
+
+        # Selected Character from Subway Runners
+        self.selected_char_idx = 0
+        self.player = Player(CHARACTERS[self.selected_char_idx]["id"])
 
         self.state = self.STATE_MENU
         self.speed = INITIAL_SPEED
@@ -59,6 +61,13 @@ class Game:
 
         # Shake surface
         self.shake_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    def switch_character(self, delta):
+        self.selected_char_idx = (self.selected_char_idx + delta) % len(CHARACTERS)
+        char_id = CHARACTERS[self.selected_char_idx]["id"]
+        self.player.set_character(char_id)
+        if self.sound_mgr.enabled:
+            self.sound_mgr.play_coin()
 
     def reset_game(self):
         self.player.reset()
@@ -80,14 +89,33 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
 
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.state == self.STATE_MENU:
+                    mx, my = event.pos
+                    # Left / Right Arrow bounds in carousel
+                    card_w = 580
+                    card_x = (SCREEN_WIDTH - card_w) // 2
+                    carousel_y = ((SCREEN_HEIGHT - 430) // 2 - 10) + 90
+                    box_x = card_x + 35
+                    box_w = card_w - 70
+                    # Left button rect
+                    if box_x + 12 <= mx <= box_x + 44 and carousel_y + 40 <= my <= carousel_y + 72:
+                        self.switch_character(-1)
+                    # Right button rect
+                    elif box_x + box_w - 44 <= mx <= box_x + box_w - 12 and carousel_y + 40 <= my <= carousel_y + 72:
+                        self.switch_character(1)
+
             elif event.type == pygame.KEYDOWN:
                 if self.state == self.STATE_MENU:
-                    if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_RETURN):
+                    if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                         self.reset_game()
+                    elif event.key in (pygame.K_q, pygame.K_LEFT, pygame.K_a):
+                        self.switch_character(-1)
+                    elif event.key in (pygame.K_e, pygame.K_RIGHT, pygame.K_d):
+                        self.switch_character(1)
 
                 elif self.state == self.STATE_PLAYING:
                     if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
-                        # Triggers 1st jump from ground OR 2nd higher double-jump in air!
                         self.player.jump(self.sound_mgr)
                     elif event.key == pygame.K_ESCAPE:
                         self.state = self.STATE_PAUSED
@@ -103,18 +131,15 @@ class Game:
             elif event.type == pygame.KEYUP:
                 if self.state == self.STATE_PLAYING:
                     if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
-                        # Variable jump height: release early for short hop
                         self.player.cut_jump()
 
     def update_stage_progression(self):
-        """Monitors current score, triggers stage level-up fanfare, and updates active theme."""
         score = self.score_mgr.current_score
         new_stage_idx = 0
         for i, stg in enumerate(STAGES):
             if score >= stg["threshold"]:
                 new_stage_idx = i
 
-        # Calculate progress towards next stage
         stg = STAGES[new_stage_idx]
         cur_thresh = stg["threshold"]
         next_thresh = stg["next_threshold"]
@@ -123,13 +148,11 @@ class Game:
         else:
             self.stage_progress = (score - cur_thresh) / float(next_thresh - cur_thresh)
 
-        # Check for stage advancement
         if new_stage_idx > self.current_stage_idx:
             self.current_stage_idx = new_stage_idx
             self.current_stage = STAGES[new_stage_idx]
-            self.banner_timer = 170  # Display banner for ~2.8 seconds
+            self.banner_timer = 170
             self.sound_mgr.play_stage_up()
-            # Slight speed boost when mastering a stage
             self.speed = min(MAX_SPEED, self.speed + 0.6)
 
         if self.banner_timer > 0:
@@ -142,9 +165,7 @@ class Game:
         if self.spawn_timer >= min_spawn_interval:
             self.spawn_timer = 0
             
-            # 75% Obstacle spawn, 25% Coin pattern
             if random.random() < 0.75:
-                # Drone spawns once speed exceeds 8.0
                 if self.speed > 8.0 and random.random() < 0.40:
                     obs_type = Obstacle.TYPE_FLYING_DRONE
                 else:
@@ -155,7 +176,6 @@ class Game:
                     ])
                 self.obstacles.append(Obstacle(obs_type, SCREEN_WIDTH + 50))
             else:
-                # Spawn coin arc or row
                 coin_y = GROUND_Y - 35 if random.random() < 0.55 else GROUND_Y - 95
                 count = random.randint(3, 4)
                 for i in range(count):
@@ -168,17 +188,11 @@ class Game:
         keys = pygame.key.get_pressed()
         self.player.update(keys, speed_factor=self.speed)
 
-        # Gradual speed progression
         if self.speed < MAX_SPEED:
             self.speed += SPEED_INCREMENT
 
-        # Score increments with distance
         self.score_mgr.add_score(self.speed * 0.1)
-
-        # Update stage progression and stage-reactive UI
         self.update_stage_progression()
-
-        # Update background
         self.background.update(self.speed)
         self.spawn_entities()
 
@@ -195,7 +209,7 @@ class Game:
 
         self.obstacles = [obs for obs in self.obstacles if not obs.is_offscreen()]
 
-        # Update coins & pickup sparkle effect
+        # Update coins
         for coin in self.coins:
             coin.update(self.speed)
             if not coin.collected and player_rect.colliderect(coin.rect):
@@ -208,7 +222,7 @@ class Game:
                         coin.x, coin.y,
                         random.uniform(-3, 3),
                         random.uniform(-3, 3),
-                        random.choice([(255, 235, 80), (255, 255, 200), self.current_stage["accent"]]),
+                        random.choice([(255, 235, 80), (255, 255, 200), self.player.char_data["accent_color"]]),
                         random.uniform(3, 6),
                         lifetime=18,
                         decay_rate=0.25
@@ -216,12 +230,10 @@ class Game:
 
         self.coins = [c for c in self.coins if not c.is_offscreen() and not c.collected]
 
-        # Update coin sparkles
         for p in self.coin_sparkles:
             p.update()
         self.coin_sparkles = [p for p in self.coin_sparkles if p.is_alive()]
 
-        # Decay screen shake
         if self.screen_shake > 0:
             self.screen_shake -= 1
 
@@ -231,7 +243,7 @@ class Game:
         else:
             target_surf = self.screen
 
-        # 1. Background (adapts dynamically to current stage palette)
+        # 1. Background
         self.background.draw(target_surf, stage=self.current_stage)
 
         # 2. Coins
@@ -249,30 +261,31 @@ class Game:
         # 5. Humanoid Player
         self.player.draw(target_surf)
 
-        # 6. Stage-Reactive Modern HUD
+        # 6. Stage-Reactive Modern HUD with Character Badge
         self.hud.draw(
             target_surf,
             self.score_mgr,
             self.speed,
             stage=self.current_stage,
             stage_progress=self.stage_progress,
-            banner_timer=self.banner_timer
+            banner_timer=self.banner_timer,
+            char_data=self.player.char_data
         )
 
         # 7. State Overlays
         if self.state == self.STATE_MENU:
-            self.menu.draw_start_menu(target_surf)
+            self.menu.draw_start_menu(target_surf, selected_char_idx=self.selected_char_idx, player_ref=self.player)
         elif self.state == self.STATE_PAUSED:
-            self.menu.draw_pause(target_surf)
+            self.menu.draw_pause(target_surf, char_data=self.player.char_data)
         elif self.state == self.STATE_GAME_OVER:
             self.menu.draw_game_over(
                 target_surf,
                 self.score_mgr.current_score,
                 self.score_mgr.high_score,
-                self.score_mgr.coins
+                self.score_mgr.coins,
+                char_data=self.player.char_data
             )
 
-        # Blit shake if active
         if self.screen_shake > 0:
             ox = random.randint(-self.screen_shake, self.screen_shake)
             oy = random.randint(-self.screen_shake, self.screen_shake)

@@ -1,9 +1,9 @@
-# Configuration & Constants for Pixel Runner (Game 01 — Modern Multi-Stage Edition)
+# Configuration & Constants for Pixel Runner (Multi-Stage Subway Heroes Edition)
 
 SCREEN_WIDTH = 960
 SCREEN_HEIGHT = 540
 FPS = 60
-TITLE = "Pixel Runner — Multi-Stage Edition"
+TITLE = "Pixel Runner — Subway Heroes Edition"
 
 # Physics
 GRAVITY = 0.85
@@ -17,7 +17,59 @@ INITIAL_SPEED = 7.0
 MAX_SPEED = 16.5
 SPEED_INCREMENT = 0.0016
 
-# Stage Palettes & Configurations
+# ----------------------------------------------------
+# 4 SELECTABLE HEROES FROM SUBWAY RUNNERS
+# ----------------------------------------------------
+CHARACTERS = [
+    {
+        "id": "jake",
+        "name": "JAKE",
+        "title": "THE SUBWAY CAPTAIN",
+        "desc": "Cap backwards & denim vest. Balanced runner.",
+        "skin_tone": (244, 202, 172),
+        "skin_shadow": (216, 170, 138),
+        "hair_color": (52, 34, 24),
+        "accent_color": (0, 240, 255),
+        "tag_color": (255, 75, 95)
+    },
+    {
+        "id": "tricky",
+        "name": "TRICKY",
+        "title": "THE ACROBAT SKATER",
+        "desc": "Red beanie & blonde pigtails. Agile jumper.",
+        "skin_tone": (250, 215, 190),
+        "skin_shadow": (224, 182, 154),
+        "hair_color": (250, 218, 94),
+        "accent_color": (255, 60, 80),
+        "tag_color": (255, 215, 0)
+    },
+    {
+        "id": "fresh",
+        "name": "FRESH",
+        "title": "THE RHYTHM MASTER",
+        "desc": "Tall high-top fade & nerd glasses. High swagger.",
+        "skin_tone": (165, 105, 65),
+        "skin_shadow": (130, 75, 45),
+        "hair_color": (20, 15, 15),
+        "accent_color": (50, 225, 80),
+        "tag_color": (255, 50, 70)
+    },
+    {
+        "id": "yutani",
+        "name": "YUTANI",
+        "title": "THE TECH ALIEN",
+        "desc": "Green monster onesie & 4 arms. Cosmic genius.",
+        "skin_tone": (245, 205, 180),
+        "skin_shadow": (215, 172, 145),
+        "hair_color": (25, 20, 30),
+        "accent_color": (120, 230, 40),
+        "tag_color": (190, 60, 255)
+    }
+]
+
+# ----------------------------------------------------
+# 4 PROGRESSIVE STAGES
+# ----------------------------------------------------
 STAGES = [
     {
         "id": 1,
@@ -26,11 +78,13 @@ STAGES = [
         "next_threshold": 1200,
         "accent": (0, 240, 255),
         "secondary": (0, 255, 180),
-        "sky_top": (12, 10, 28),
-        "sky_bottom": (28, 18, 54),
-        "ground": (22, 18, 36),
+        "sky_top": (10, 8, 26),
+        "sky_bottom": (26, 16, 52),
+        "ground": (20, 16, 32),
         "ground_line": (0, 240, 255),
-        "grid": (55, 35, 90),
+        "grid": (50, 32, 85),
+        "moon_color": (220, 245, 255),
+        "moon_glow": (0, 240, 255, 35),
         "window_colors": [(0, 240, 255), (180, 230, 255), (255, 240, 150)]
     },
     {
@@ -41,10 +95,12 @@ STAGES = [
         "accent": (255, 190, 40),
         "secondary": (255, 100, 50),
         "sky_top": (28, 12, 34),
-        "sky_bottom": (66, 26, 46),
+        "sky_bottom": (70, 28, 50),
         "ground": (34, 18, 30),
         "ground_line": (255, 180, 20),
         "grid": (85, 35, 60),
+        "moon_color": (255, 210, 140),
+        "moon_glow": (255, 140, 40, 40),
         "window_colors": [(255, 210, 80), (255, 140, 60), (255, 235, 160)]
     },
     {
@@ -55,10 +111,12 @@ STAGES = [
         "accent": (255, 45, 160),
         "secondary": (190, 60, 255),
         "sky_top": (18, 8, 34),
-        "sky_bottom": (48, 14, 62),
+        "sky_bottom": (50, 14, 64),
         "ground": (26, 12, 36),
         "ground_line": (255, 50, 160),
         "grid": (90, 25, 85),
+        "moon_color": (255, 190, 240),
+        "moon_glow": (255, 50, 160, 35),
         "window_colors": [(255, 80, 180), (190, 80, 255), (255, 220, 250)]
     },
     {
@@ -68,32 +126,22 @@ STAGES = [
         "next_threshold": 999999,
         "accent": (0, 255, 140),
         "secondary": (240, 255, 250),
-        "sky_top": (8, 18, 24),
-        "sky_bottom": (18, 44, 50),
-        "ground": (14, 28, 32),
+        "sky_top": (6, 16, 22),
+        "sky_bottom": (16, 42, 48),
+        "ground": (12, 24, 28),
         "ground_line": (0, 255, 160),
-        "grid": (20, 80, 75),
+        "grid": (18, 75, 70),
+        "moon_color": (200, 255, 235),
+        "moon_glow": (0, 255, 160, 40),
         "window_colors": [(0, 255, 160), (220, 255, 240), (0, 210, 255)]
     }
 ]
 
 # Modern UI / Glassmorphism Palette Defaults
 COLOR_BG_DARK = (12, 10, 24)
-COLOR_GLASS_BG = (22, 18, 42, 210)
+COLOR_GLASS_BG = (22, 18, 42, 215)
 COLOR_GLASS_BORDER = (0, 240, 255, 120)
 COLOR_GLASS_HIGHLIGHT = (255, 255, 255, 30)
-
-# Human Character Palette
-SKIN_TONE = (242, 195, 160)
-SKIN_SHADOW = (212, 162, 128)
-HAIR_COLOR = (42, 28, 22)
-HAIR_HIGHLIGHT = (70, 48, 38)
-
-CLOTH_SHIRT = (0, 210, 230)       # Athletic jacket
-CLOTH_SHIRT_ACCENT = (0, 150, 180) # Inner shadow/zipper
-CLOTH_PANTS = (34, 38, 54)        # Dark tech runner trousers
-CLOTH_SHOES = (255, 70, 95)       # Neon red/pink running sneakers
-CLOTH_SHOES_SOLES = (255, 255, 255)
 
 # Entities Palette
 COLOR_OBSTACLE_GROUND = (255, 45, 110)

@@ -2,36 +2,38 @@
 
 Ushbu repozitoriy 12 ta ketma-ket murakkablashib boruvchi 2D o‘yin loyihalarini o‘z ichiga oladi.
 
-## 🕹️ 01-Loyiha: Pixel Runner (Multi-Stage Humanoid Edition)
+## 🕹️ 01-Loyiha: Pixel Runner (Subway Heroes & Multi-Stage Edition)
 
-Roadmap'dagi 1-loyiha — **Pixel Runner** zamonaviy inson qahramoni, ikki bosqichli sakrash (Double Jump) va dinamik bosqichlar (Multi-Stage) bilan yangilandi.
+Roadmap'dagi 1-loyiha — **Pixel Runner** Subway Surfers qahramonlari (Jake, Tricky, Fresh, Yutani) tanlovi, ikki bosqichli sakrash (Double Jump), dinamik bosqichlar va yangilangan shahar manzarasi bilan yangilandi.
 
 ### ✨ Yangilangan va Optimallashtirilgan Xususiyatlar:
+* **4 ta Tanlanadigan Subway Qahramonlari:**
+  * 🧢 **JAKE:** Orqaga kiyilgan oq-qizil kepka, jinsi jilet, oq xudi va ko'k jinsi shim.
+  * 🎀 **TRICKY:** Qizil bini bosh kiyimi, sarg'ish pigtail kokillari, qora ko'zoynak, oq top va keng 90-yillar jinsi shimi.
+  * 🎵 **FRESH:** Baland klassik flat-top soch turmagi, katta qora ko'zoynak, yashil mayka, qizil shortik va chiziqli uzun paypoqlar.
+  * 👽 **YUTANI:** Gigant ko'zli yashil o'zga sayyoralik kombinezoni (alien onesie), binafsha soch tugunlari va 4 ta qo'li bilan!
+  * **Tanlash boshqaruvi:** Bosh menyuda `Q` / `E` (yoki Chap / O'ng tugma) orqali personajlarni tanlash mumkin.
 * **Ikki Bosqichli Baland Sakrash (Double Jump):**
-  * `SPACE` yoki `W` / `UP` tugmasi 1-marta bosilganda yerdan sakraydi.
+  * `SPACE` yoki `W` 1-marta bosilganda yerdan sakraydi.
   * Havodalik paytida 2-marta bosilganda **Double Jump** ishga tushadi: qahramon havoda akrobatik 360° salto (somersault) aylanib, yanada balandroqqa ko'tariladi!
-  * Oyoq ostida energiyali zarba to'lqini (shockwave ring) va sintezlangan maxsus double-jump ovoz effekti.
-  * Tugmani tez qo'yib yuborish orqali balandlikni boshqarish (variable jump height).
-* **Dinamik Bosqichli Tizim (Multi-Stage Progression):**
-  * **1-bosqich: Cyber Dawn (0 - 1200):** Moviy neon ufq, binafsha osmon va sokin shahar.
-  * **2-bosqich: Sunset Metropolis (1200 - 3000):** Oltin/olovrang quyosh botishi, qizg'ish grid va tezlashgan sur'at.
-  * **3-bosqich: Neon Nightfall (3000 - 5500):** To'q binafsha va yorqin fuksiya neon nurlari.
-  * **4-bosqich: Apex Overdrive (5500+):** Giper-yashil kiber tezyurar rejim.
-* **Bosqichga Mos Dinamik O'zgaruvchan UI:**
-  * Har bir bosqichda barcha HUD nishonlari va hoshiyalari o'sha bosqich ranglariga moslashadi.
-  * Yangi bosqichga yetganda ekranda animatsiyali daraja burchagi (Stage Banner) va tantanali ovoz yangraydi.
-  * Yangi Stage indikatori va bosqich to'lish progress-bari.
-* **Barqaror Shahar Chiroqlari (Zero-Flicker Windows):**
-  * Binolar chiroqlarining ochib-yonishi va o'chib qolishi to'liq bartaraf etildi. Barcha deraza yoritgichlari binolarga nisbatan statik va realistik tarzda saqlanadi.
-* **Humanoid Personaj & Harakat:**
-  * O‘yinchi to‘liq odam qiyofasida (bosh, shamolda tebranuvchi soch, sport kiber-jaketi, ikki bo'g'inli tizza va tirsak kinematikasi).
-  * O'yinchining yerga tushayotgan soyasi (altitude shadow) balandlikka qarab o'zgaradi.
-  * Sirpanish (Slide): pastki qavatga tushish, dronlar ostidan xavfsiz sirpanib o‘tish va uchqunlar.
-* **Physics & Controls:**
-  * `SPACE` / `UP` / `W`: Sakrash (havoda yana bosa — Double Jump).
-  * `DOWN` / `S`: Sirpanish / Egilish.
+  * Personajning aksent rangidagi zarba to'lqini (shockwave ring) va ovoz effekti.
+* **Chiroyli Multi-Layer Orqa Fon (Gorgeous Cityscape):**
+  * Yumshoq nurlanuvchi Kiber-Oy / Quyosh va uning atmosferaviy nurlari.
+  * Havoda suzuvchi volumetrik bulutlar.
+  * Bino tomlarida yonib turuvchi neon bannerlar (`SUBWAY`, `RUN`, `CYBER`, `NEON`).
+  * Ufq bo'ylab harakatlanuvchi relslar va temir yo'l shpallari (sleepers).
+  * Mutlaqo miltillamaydigan, statik va realistik deraza chiroqlari.
+* **4 Bosqichli Dinamik O'yin (Multi-Stage):**
+  * **1-bosqich: Cyber Dawn (0 - 1200):** Moviy neon ufq.
+  * **2-bosqich: Sunset Metropolis (1200 - 3000):** Oltin quyosh botishi.
+  * **3-bosqich: Neon Nightfall (3000 - 5500):** Qizg'ish neon shahar.
+  * **4-bosqich: Apex Overdrive (5500+):** Giper-yashil tezyurar rejim.
+* **Boshqaruv (Controls):**
+  * `Q` / `E` yoki `A` / `D`: Qahramonni almashtirish (Menyuda).
+  * `SPACE` / `UP` / `W`: Sakrash (Havoda 2x bosilsa — Double Jump).
+  * `DOWN` / `S`: Sirpanish (Slide).
   * `ESC`: Pauza / Davom ettirish.
-* **HTML5 Versiya:** Brauzerda to‘liq inson qiyofasi, double jump va bosqichlar bilan o‘ynash uchun `index.html`.
+* **HTML5 Versiya:** Brauzerda to‘liq 4 ta qahramon, double jump va yangi fon bilan o‘ynash uchun `index.html`.
 
 ---
 

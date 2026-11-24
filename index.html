@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pixel Runner — Multi-Stage Edition</title>
+  <title>Pixel Runner — Subway Heroes Multi-Stage Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,9 +60,10 @@
   <div class="header">
     <h1 id="titleText">Pixel Runner</h1>
     <span class="tag" id="stageTag">Stage 1: Cyber Dawn</span>
+    <span class="tag" id="heroTag" style="border-color:#ff4b6e;color:#ff4b6e;">Hero: JAKE</span>
   </div>
   <canvas id="gameCanvas" width="960" height="540"></canvas>
-  <div class="footer">SPACE / W: Jump (2x for Double Jump) | DOWN / S: Slide | ESC: Pause</div>
+  <div class="footer">Q / E: Change Hero | SPACE: Jump (2x Double Jump) | DOWN: Slide | ESC: Pause</div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
@@ -73,6 +74,50 @@
     const JUMP_FORCE = -14.2;
     const DOUBLE_JUMP_FORCE = -16.2;
 
+    // 4 Subway Heroes from Image 1
+    const HEROES = [
+      {
+        id: "jake",
+        name: "JAKE",
+        title: "SUBWAY CAPTAIN",
+        accent: "#00f0ff",
+        vest: "#376eb9",
+        hoodie: "#e6e6eb",
+        pants: "#26375f",
+        skin: "#f4caa8"
+      },
+      {
+        id: "tricky",
+        name: "TRICKY",
+        title: "ACROBAT SKATER",
+        accent: "#ff3c50",
+        beanie: "#eb2832",
+        blonde: "#fcde62",
+        jeans: "#4682c8",
+        skin: "#fad7be"
+      },
+      {
+        id: "fresh",
+        name: "FRESH",
+        title: "RHYTHM MASTER",
+        accent: "#32e150",
+        tank: "#2dd74b",
+        shorts: "#eb2d37",
+        skin: "#a56941"
+      },
+      {
+        id: "yutani",
+        name: "YUTANI",
+        title: "TECH ALIEN",
+        accent: "#78e628",
+        onesie: "#7dd737",
+        purple: "#b93cfa",
+        skin: "#f5cdb4"
+      }
+    ];
+
+    let selectedHeroIdx = 0;
+
     // Multi-Stage Configuration
     const STAGES = [
       {
@@ -82,11 +127,12 @@
         nextThresh: 1200,
         accent: "#00f0ff",
         secondary: "#00ffb4",
-        skyTop: "#0c0a1c",
-        skyBottom: "#1c1236",
-        ground: "#161224",
+        skyTop: "#0a081a",
+        skyBottom: "#1a1034",
+        ground: "#141020",
         groundLine: "#00f0ff",
-        grid: "#37235a",
+        grid: "#322055",
+        moonCol: "#dcf5ff",
         windows: ["#00f0ff", "#b4e6ff", "#fff096"]
       },
       {
@@ -97,10 +143,11 @@
         accent: "#ffbe28",
         secondary: "#ff6432",
         skyTop: "#1c0c22",
-        skyBottom: "#421a2e",
+        skyBottom: "#461c32",
         ground: "#22121e",
         groundLine: "#ffb414",
         grid: "#55233c",
+        moonCol: "#ffd28c",
         windows: ["#ffd250", "#ff8c3c", "#ffeb96"]
       },
       {
@@ -111,10 +158,11 @@
         accent: "#ff2da0",
         secondary: "#be3cff",
         skyTop: "#120822",
-        skyBottom: "#300e3e",
+        skyBottom: "#320e40",
         ground: "#1a0c24",
         groundLine: "#ff32a0",
         grid: "#5a1955",
+        moonCol: "#ffbef0",
         windows: ["#ff50b4", "#be50ff", "#ffdcfa"]
       },
       {
@@ -124,11 +172,12 @@
         nextThresh: 999999,
         accent: "#00ff8c",
         secondary: "#f0fffa",
-        skyTop: "#081218",
-        skyBottom: "#122c32",
-        ground: "#0e1c20",
+        skyTop: "#061016",
+        skyBottom: "#102a30",
+        ground: "#0c181c",
         groundLine: "#00ffa0",
-        grid: "#14504b",
+        grid: "#124b46",
+        moonCol: "#c8ffe8",
         windows: ["#00ffa0", "#dcfff0", "#00d2ff"]
       }
     ];
@@ -137,14 +186,13 @@
     let stageProgress = 0.0;
     let bannerTimer = 0;
 
-    let state = "MENU"; // MENU, PLAYING, PAUSED, GAMEOVER
+    let state = "MENU";
     let speed = 7.0;
     let score = 0;
     let highScore = parseInt(localStorage.getItem("pixel_runner_hi") || "0", 10);
     let coins = 0;
     let screenShake = 0;
 
-    // Humanoid Player Object with Double Jump
     const player = {
       x: 140,
       y: GROUND_Y,
@@ -168,16 +216,17 @@
     let spawnTimer = 0;
     let groundOffset = 0;
 
-    // Pre-generate stable, non-flickering buildings with fixed windows
-    function generateSkyline(count, minH, maxH, hasWindows) {
+    function generateSkyline(count, minH, maxH, hasWindows, hasBillboards) {
       const buildings = [];
       let curX = 0;
+      const bTexts = ["SUBWAY", "RUN", "NEON", "CYBER"];
       for (let i = 0; i < count; i++) {
-        const w = 44 + Math.floor(Math.random() * 40);
+        const w = 48 + Math.floor(Math.random() * 40);
         const h = minH + Math.floor(Math.random() * (maxH - minH));
         const windows = [];
+        let billboard = null;
         if (hasWindows) {
-          for (let ry = 14; ry < h - 22; ry += 24) {
+          for (let ry = 16; ry < h - 24; ry += 24) {
             for (let rx = 8; rx < w - 12; rx += 16) {
               if (Math.random() < 0.65) {
                 windows.push({ rx, ry, variant: Math.floor(Math.random() * 3) });
@@ -185,18 +234,26 @@
             }
           }
         }
-        buildings.push({ x: curX, w, h, windows });
+        if (hasBillboards && Math.random() < 0.25 && w >= 55) {
+          billboard = { text: bTexts[i % bTexts.length], w: w - 12, h: 18 };
+        }
+        buildings.push({ x: curX, w, h, windows, billboard });
         curX += w + 8 + Math.floor(Math.random() * 16);
       }
       return buildings;
     }
 
-    const buildingsBack = generateSkyline(26, 60, 160, false);
-    const buildingsFront = generateSkyline(22, 100, 220, true);
+    const buildingsBack = generateSkyline(28, 70, 170, false, false);
+    const buildingsFront = generateSkyline(24, 110, 240, true, true);
     let backScroll = 0;
     let frontScroll = 0;
 
-    // Audio Synthesis (Web Audio API)
+    const clouds = [
+      { x: 120, y: 40, w: 140, speed: 0.18 },
+      { x: 450, y: 70, w: 160, speed: 0.22 },
+      { x: 780, y: 35, w: 120, speed: 0.15 }
+    ];
+
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let actx = null;
     function initAudio() {
@@ -219,16 +276,13 @@
       } catch (e) {}
     }
 
-    function playDoubleJumpSound() {
-      playBeep(450, "sine", 0.22, 1100);
-    }
-
-    function playStageUpSound() {
-      if (!actx) return;
-      const notes = [440.0, 554.37, 659.25, 880.0];
-      notes.forEach((freq, idx) => {
-        setTimeout(() => playBeep(freq, "triangle", 0.18, freq * 1.05), idx * 80);
-      });
+    function switchHero(delta) {
+      selectedHeroIdx = (selectedHeroIdx + delta + HEROES.length) % HEROES.length;
+      const h = HEROES[selectedHeroIdx];
+      document.getElementById("heroTag").textContent = `Hero: ${h.name}`;
+      document.getElementById("heroTag").style.borderColor = h.accent;
+      document.getElementById("heroTag").style.color = h.accent;
+      playBeep(980, "sine", 0.1, 1200);
     }
 
     function resetGame() {
@@ -253,7 +307,6 @@
       state = "PLAYING";
     }
 
-    // Input handlers
     const keys = {};
     window.addEventListener("keydown", (e) => {
       initAudio();
@@ -264,21 +317,17 @@
           resetGame();
         } else if (state === "PLAYING" && !player.isDucking) {
           if (player.isGrounded) {
-            // 1st Ground Jump
             player.vy = JUMP_FORCE;
             player.isGrounded = false;
             player.jumpCount = 1;
             player.isDoubleJumping = false;
             playBeep(320, "square", 0.15, 750);
           } else if (player.jumpCount < 2) {
-            // 2nd Mid-Air DOUBLE JUMP (higher!)
             player.vy = DOUBLE_JUMP_FORCE;
             player.jumpCount = 2;
             player.isDoubleJumping = true;
             player.flipAngle = 0;
-            playDoubleJumpSound();
-
-            // Double jump shockwave ring particle
+            playBeep(450, "sine", 0.22, 1100);
             player.particles.push({
               x: player.x,
               y: player.y - 6,
@@ -286,11 +335,15 @@
               vy: 0,
               isRing: true,
               size: 8,
-              color: "#00f0ff",
+              color: HEROES[selectedHeroIdx].accent,
               life: 20
             });
           }
         }
+      } else if (e.code === "KeyQ" || e.code === "ArrowLeft") {
+        if (state === "MENU") switchHero(-1);
+      } else if (e.code === "KeyE" || e.code === "ArrowRight") {
+        if (state === "MENU") switchHero(1);
       } else if (e.code === "Escape") {
         if (state === "PLAYING") state = "PAUSED";
         else if (state === "PAUSED") state = "PLAYING";
@@ -300,30 +353,25 @@
     window.addEventListener("keyup", (e) => {
       keys[e.code] = false;
       if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
-        // Variable jump cut
         if (!player.isGrounded && player.vy < -4.5) {
           player.vy *= 0.55;
         }
       }
     });
 
-    canvas.addEventListener("touchstart", (e) => {
-      e.preventDefault();
+    canvas.addEventListener("click", (e) => {
       initAudio();
-      if (state === "MENU" || state === "GAMEOVER") {
-        resetGame();
-      } else if (state === "PLAYING") {
-        if (player.isGrounded) {
-          player.vy = JUMP_FORCE;
-          player.isGrounded = false;
-          player.jumpCount = 1;
-          playBeep(320, "square", 0.15, 750);
-        } else if (player.jumpCount < 2) {
-          player.vy = DOUBLE_JUMP_FORCE;
-          player.jumpCount = 2;
-          player.isDoubleJumping = true;
-          player.flipAngle = 0;
-          playDoubleJumpSound();
+      if (state === "MENU") {
+        const rect = canvas.getBoundingClientRect();
+        const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
+        // Left arrow click
+        if (cx >= 240 && cx <= 280 && cy >= 190 && cy <= 240) {
+          switchHero(-1);
+        } else if (cx >= 680 && cx <= 720 && cy >= 190 && cy <= 240) {
+          switchHero(1);
+        } else if (cy >= 280) {
+          resetGame();
         }
       }
     });
@@ -363,7 +411,6 @@
         localStorage.setItem("pixel_runner_hi", highScore);
       }
 
-      // Check Stage Progression
       let newStageIdx = 0;
       for (let i = 0; i < STAGES.length; i++) {
         if (score >= STAGES[i].thresh) newStageIdx = i;
@@ -375,7 +422,6 @@
       if (newStageIdx > currentStageIdx) {
         currentStageIdx = newStageIdx;
         bannerTimer = 170;
-        playStageUpSound();
         speed = Math.min(16.5, speed + 0.6);
         document.getElementById("stageTag").textContent = `Stage ${stg.id}: ${stg.name}`;
         document.getElementById("stageTag").style.borderColor = stg.accent;
@@ -387,9 +433,14 @@
       groundOffset = (groundOffset + speed) % 40;
       backScroll = (backScroll + speed * 0.15) % (canvas.width * 2);
       frontScroll = (frontScroll + speed * 0.38) % (canvas.width * 2);
-      player.tick += 0.28 * (speed / 7.0);
+      player.tick += 0.26 * (speed / 7.0);
 
-      // Footstep & Slide Particles
+      clouds.forEach(c => {
+        c.x -= c.speed * (speed / 7.0 + 0.3);
+        if (c.x + c.w < -50) c.x = canvas.width + 50;
+      });
+
+      // Particles
       if (player.isGrounded) {
         if (player.isDucking) {
           if (Math.random() < 0.6) {
@@ -398,7 +449,7 @@
               y: player.y - 2,
               vx: -(Math.random() * 3 + 1),
               vy: -(Math.random() * 1.5),
-              color: Math.random() < 0.5 ? stg.accent : "#ffb432",
+              color: HEROES[selectedHeroIdx].accent,
               size: Math.random() * 3 + 2,
               life: 14
             });
@@ -451,7 +502,6 @@
         }
       }
 
-      // Check obstacle collisions
       const curW = player.isDucking ? player.wDuck : player.w;
       const curH = player.isDucking ? player.hDuck : player.h;
       const px = player.x - (player.isDucking ? 24 : 14);
@@ -471,7 +521,6 @@
       }
       obstacles = obstacles.filter(o => o.x + o.w > -50);
 
-      // Coins & Sparkles
       for (let i = 0; i < coinList.length; i++) {
         const c = coinList[i];
         c.x -= speed;
@@ -516,38 +565,30 @@
       ctx.stroke();
     }
 
-    function drawHumanoid() {
-      const stage = STAGES[currentStageIdx];
+    function drawHero(heroIdx, customX, customY) {
+      const hero = HEROES[heroIdx];
+      const hipX = customX !== undefined ? customX : player.x;
+      const curY = customY !== undefined ? customY : player.y;
       const cycle = player.tick;
-      const hipX = player.x;
 
       // Ground Shadow
-      const alt = Math.max(0, GROUND_Y - player.y);
+      const alt = Math.max(0, GROUND_Y - curY);
       const shScale = Math.max(0.2, 1.0 - alt / 260.0);
       ctx.fillStyle = `rgba(0, 0, 0, ${0.45 * shScale})`;
       ctx.beginPath();
-      ctx.ellipse(player.x, GROUND_Y, 24 * shScale, 6 * shScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(hipX, GROUND_Y, 24 * shScale, 6 * shScale, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      if (player.isDucking) {
-        // SLIDING POSE
-        const slideY = player.y - 10;
-        ctx.fillStyle = "#00d2e6";
+      if (customX === undefined && player.isDucking) {
+        // Slide pose
+        const slideY = curY - 10;
+        ctx.fillStyle = hero.accent;
         ctx.beginPath();
         ctx.roundRect(hipX - 18, slideY - 14, 22, 14, 4);
         ctx.fill();
-        ctx.fillStyle = "#f2c3a0";
+        ctx.fillStyle = hero.skin;
         ctx.beginPath();
         ctx.arc(hipX - 22, slideY - 14, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(hipX - 20, slideY - 15, 3, 2);
-        ctx.fillStyle = "#2a1c16";
-        ctx.beginPath();
-        ctx.moveTo(hipX - 29, slideY - 13);
-        ctx.lineTo(hipX - 36, slideY - 21);
-        ctx.lineTo(hipX - 20, slideY - 22);
-        ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = "#222636";
         ctx.lineWidth = 6;
@@ -555,76 +596,33 @@
         ctx.moveTo(hipX + 2, slideY - 4);
         ctx.lineTo(hipX + 28, slideY - 1);
         ctx.stroke();
-        ctx.fillStyle = "#ff465f";
-        ctx.fillRect(hipX + 24, slideY - 4, 12, 6);
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(hipX + 24, slideY + 1, 12, 2);
         return;
       }
 
-      if (player.isDoubleJumping) {
-        // DOUBLE JUMP SOMERSAULT
+      if (customX === undefined && player.isDoubleJumping) {
         ctx.save();
-        ctx.translate(player.x, player.y - 28);
+        ctx.translate(hipX, curY - 28);
         ctx.rotate((-player.flipAngle * Math.PI) / 180);
-        ctx.fillStyle = "#00d2e6";
+        ctx.fillStyle = hero.accent;
         ctx.beginPath();
         ctx.roundRect(-8, -10, 16, 18, 4);
         ctx.fill();
-        ctx.fillStyle = "#f2c3a0";
+        ctx.fillStyle = hero.skin;
         ctx.beginPath();
         ctx.arc(4, -18, 8, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "#222636";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(-4, 4);
-        ctx.lineTo(8, 14);
-        ctx.lineTo(-2, 18);
-        ctx.stroke();
         ctx.restore();
         return;
       }
 
-      if (!player.isGrounded) {
-        // STANDARD JUMP
-        const hipY = player.y - 26;
-        ctx.fillStyle = "#00d2e6";
-        ctx.beginPath();
-        ctx.roundRect(hipX - 8, hipY - 20, 16, 20, 4);
-        ctx.fill();
-        ctx.fillStyle = "#f2c3a0";
-        ctx.beginPath();
-        ctx.arc(hipX + 2, hipY - 31, 9, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#2a1c16";
-        ctx.beginPath();
-        ctx.moveTo(hipX - 6, hipY - 29);
-        ctx.lineTo(hipX - 10, hipY - 43);
-        ctx.lineTo(hipX + 7, hipY - 42);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = "#222636";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(hipX - 3, hipY);
-        ctx.lineTo(hipX - 12, hipY + 12);
-        ctx.moveTo(hipX + 3, hipY);
-        ctx.lineTo(hipX + 10, hipY + 8);
-        ctx.stroke();
-        ctx.fillStyle = "#ff465f";
-        ctx.fillRect(hipX - 16, hipY + 10, 8, 5);
-        ctx.fillRect(hipX + 8, hipY + 6, 8, 5);
-        return;
-      }
+      const isAir = customX === undefined && !player.isGrounded;
+      const bob = isAir ? 0 : Math.sin(cycle * 2.0) * 2.5;
+      const hipY = curY - 28 + bob;
+      const leg1Angle = isAir ? 0.6 : Math.sin(cycle) * 0.75;
+      const leg2Angle = isAir ? -0.5 : Math.sin(cycle + Math.PI) * 0.75;
 
-      // RUNNING POSE
-      const bob = Math.sin(cycle * 2.0) * 2.5;
-      const hipY = player.y - 28 + bob;
-      const leg1Angle = Math.sin(cycle) * 0.75;
-      const leg2Angle = Math.sin(cycle + Math.PI) * 0.75;
-
-      function drawLeg(angle, isBack) {
+      // Legs
+      function drawSimpleLeg(angle, color) {
         const thigh = 14, shin = 14;
         const kneeBend = angle > 0 ? Math.sin(angle) * 0.4 : -Math.sin(angle) * 0.8;
         const kx = hipX + Math.sin(angle) * thigh;
@@ -632,7 +630,7 @@
         const fx = kx + Math.sin(angle - kneeBend * 0.5) * shin;
         const fy = Math.min(ky + Math.cos(angle - kneeBend * 0.5) * shin, GROUND_Y);
 
-        ctx.strokeStyle = isBack ? "#191c2a" : "#222636";
+        ctx.strokeStyle = color;
         ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.moveTo(hipX, hipY);
@@ -640,43 +638,78 @@
         ctx.lineTo(fx, fy);
         ctx.stroke();
 
-        ctx.fillStyle = isBack ? "#c8324b" : "#ff465f";
-        ctx.fillRect(fx - 3, fy - 6, 10, 6);
         ctx.fillStyle = "#fff";
-        ctx.fillRect(fx - 3, fy - 2, 10, 2);
+        ctx.fillRect(fx - 3, fy - 6, 10, 6);
       }
 
-      drawLeg(leg2Angle, true);
+      const pantsColor = hero.id === "tricky" ? "#4682c8" : (hero.id === "fresh" ? "#eb2d37" : (hero.id === "yutani" ? "#7dd737" : "#26375f"));
+      drawSimpleLeg(leg2Angle, pantsColor);
 
       // Torso
-      ctx.fillStyle = "#00d2e6";
+      ctx.fillStyle = hero.id === "tricky" ? "#fff" : (hero.id === "fresh" ? "#2dd74b" : (hero.id === "yutani" ? "#7dd737" : "#376eb9"));
       ctx.beginPath();
-      ctx.roundRect(hipX - 7, hipY - 20, 16, 20, 4);
+      ctx.roundRect(hipX - 8, hipY - 20, 16, 20, 4);
       ctx.fill();
-      ctx.fillStyle = "#0096b4";
-      ctx.fillRect(hipX, hipY - 17, 2, 17);
 
       // Head
-      ctx.fillStyle = "#f2c3a0";
+      const headX = hipX + 4;
+      const headY = hipY - 30;
+      ctx.fillStyle = hero.skin;
       ctx.beginPath();
-      ctx.arc(hipX + 4, hipY - 31, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(hipX + 7, hipY - 33, 4, 3);
-      ctx.fillStyle = "#141428";
-      ctx.fillRect(hipX + 9, hipY - 33, 2, 3);
-      ctx.fillStyle = "#2a1c16";
-      ctx.beginPath();
-      ctx.moveTo(hipX - 4, hipY - 30);
-      ctx.lineTo(hipX - 8, hipY - 40);
-      ctx.lineTo(hipX + 10, hipY - 41);
-      ctx.lineTo(hipX + 12, hipY - 36);
-      ctx.closePath();
+      ctx.arc(headX, headY, 9, 0, Math.PI * 2);
       ctx.fill();
 
-      drawLeg(leg1Angle, false);
+      // Character-specific Head Accessories
+      if (hero.id === "jake") {
+        // Jake White/Red Cap
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(headX, headY - 3, 9, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = "#eb2d37";
+        ctx.fillRect(headX - 11, headY - 6, 8, 4); // Back visor
+      } else if (hero.id === "tricky") {
+        // Red Beanie & Blonde Pigtails
+        ctx.fillStyle = "#eb2832";
+        ctx.beginPath();
+        ctx.ellipse(headX, headY - 5, 9, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fcde62";
+        ctx.beginPath();
+        ctx.arc(headX - 9, headY - 2, 5, 0, Math.PI * 2);
+        ctx.arc(headX + 5, headY + 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (hero.id === "fresh") {
+        // High-Top Fade Hair
+        ctx.fillStyle = "#161010";
+        ctx.fillRect(headX - 7, headY - 22, 14, 15);
+      } else if (hero.id === "yutani") {
+        // Alien Monster Onesie Hood & Giant Eyes
+        ctx.fillStyle = "#7dd737";
+        ctx.beginPath();
+        ctx.arc(headX, headY, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f5cdb4";
+        ctx.beginPath();
+        ctx.arc(headX + 2, headY + 1, 7, 0, Math.PI * 2);
+        ctx.fill();
+        // Big cartoon eyes on hood
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(headX - 4, headY - 10, 5, 0, Math.PI * 2);
+        ctx.arc(headX + 5, headY - 10, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1a24";
+        ctx.beginPath();
+        ctx.arc(headX - 4, headY - 10, 2.5, 0, Math.PI * 2);
+        ctx.arc(headX + 5, headY - 10, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
-      ctx.strokeStyle = "#00d2e6";
+      drawSimpleLeg(leg1Angle, pantsColor);
+
+      // Arm
+      ctx.strokeStyle = hero.accent;
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(hipX + 2, hipY - 14);
@@ -686,6 +719,7 @@
 
     function draw() {
       const stage = STAGES[currentStageIdx];
+      const hero = HEROES[selectedHeroIdx];
 
       ctx.save();
       if (screenShake > 0) {
@@ -699,15 +733,34 @@
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Distant Stars
-      ctx.fillStyle = "#ffffff";
+      // Celestial Moon
+      const moonX = canvas.width - 180, moonY = 100;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 56, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = stage.moonCol;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 32, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Stars
+      ctx.fillStyle = "#fff";
       for (let i = 0; i < 40; i++) {
         const sx = (i * 47) % canvas.width;
         const sy = (i * 29) % (GROUND_Y - 90);
         ctx.fillRect(sx, sy, 2, 2);
       }
 
-      // Distant Skyline (Back layer)
+      // Clouds
+      clouds.forEach(c => {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+        ctx.beginPath();
+        ctx.ellipse(c.x, c.y, c.w / 2, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Distant Skyline
       ctx.fillStyle = stage.skyBottom;
       buildingsBack.forEach(b => {
         const bx = (b.x - backScroll * 1.5) % (canvas.width * 2) - 100;
@@ -716,7 +769,7 @@
         }
       });
 
-      // Near Skyline (Front layer) with 100% NON-FLICKERING Windows
+      // Front Skyline with Windows & Billboards
       buildingsFront.forEach(b => {
         const bx = (b.x - frontScroll * 1.5) % (canvas.width * 2) - 100;
         if (bx >= -100 && bx <= canvas.width + 100) {
@@ -724,10 +777,21 @@
           ctx.fillStyle = "#221c32";
           ctx.fillRect(bx, bTop, b.w, b.h);
 
-          // Render permanent pre-calculated windows (No flicker!)
+          if (b.billboard) {
+            ctx.fillStyle = "#100c1e";
+            ctx.fillRect(bx + 6, bTop + 8, b.billboard.w, b.billboard.h);
+            ctx.strokeStyle = stage.groundLine;
+            ctx.strokeRect(bx + 6, bTop + 8, b.billboard.w, b.billboard.h);
+            ctx.fillStyle = stage.groundLine;
+            ctx.font = "bold 11px Consolas";
+            ctx.fillText(b.billboard.text, bx + 10, bTop + 21);
+          }
+
           b.windows.forEach(w => {
-            ctx.fillStyle = stage.windows[w.variant % stage.windows.length];
-            ctx.fillRect(bx + w.rx, bTop + w.ry, 8, 12);
+            if (!b.billboard || w.ry >= 32) {
+              ctx.fillStyle = stage.windows[w.variant % stage.windows.length];
+              ctx.fillRect(bx + w.rx, bTop + w.ry, 8, 12);
+            }
           });
         }
       });
@@ -736,7 +800,14 @@
       ctx.fillStyle = stage.ground;
       ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
 
-      // Neon horizon line (Stage accent)
+      // Rails & Ties
+      ctx.strokeStyle = "#8c96b4";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y - 2);
+      ctx.lineTo(canvas.width, GROUND_Y - 2);
+      ctx.stroke();
+
       ctx.strokeStyle = stage.groundLine;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -744,14 +815,23 @@
       ctx.lineTo(canvas.width, GROUND_Y);
       ctx.stroke();
 
-      // Grid stripes
+      for (let x = -40; x < canvas.width + 40; x += 36) {
+        const rx = x - groundOffset;
+        ctx.strokeStyle = "#3c324b";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(rx, GROUND_Y);
+        ctx.lineTo(rx - 4, GROUND_Y + 12);
+        ctx.stroke();
+      }
+
       ctx.strokeStyle = stage.grid;
       ctx.lineWidth = 2;
       for (let x = -40; x < canvas.width + 40; x += 40) {
         const gx = x - groundOffset;
         ctx.beginPath();
-        ctx.moveTo(gx, GROUND_Y);
-        ctx.lineTo(gx - 30, canvas.height);
+        ctx.moveTo(gx, GROUND_Y + 12);
+        ctx.lineTo(gx - 32, canvas.height);
         ctx.stroke();
       }
 
@@ -771,7 +851,6 @@
         }
       });
 
-      // Sparkles
       coinSparkles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -779,7 +858,6 @@
         ctx.fill();
       });
 
-      // Coins
       coinList.forEach(c => {
         ctx.fillStyle = "#ffd700";
         ctx.beginPath();
@@ -790,65 +868,59 @@
         ctx.stroke();
       });
 
-      // Obstacles
       obstacles.forEach(o => {
         if (o.isDrone) {
           ctx.fillStyle = "#ffb400";
           ctx.beginPath();
           ctx.roundRect(o.x, o.y - o.h, o.w, o.h, 6);
           ctx.fill();
-          ctx.fillStyle = "#fff";
-          ctx.beginPath();
-          ctx.arc(o.x + o.w / 2, o.y - o.h / 2, 4, 0, Math.PI * 2);
-          ctx.fill();
         } else {
           ctx.fillStyle = "#ff2d6e";
           ctx.beginPath();
           ctx.roundRect(o.x, o.y - o.h, o.w, o.h, 4);
           ctx.fill();
-          ctx.fillStyle = "#ff78a0";
-          ctx.fillRect(o.x + 4, o.y - o.h + 4, o.w - 8, o.h - 6);
         }
       });
 
-      // Draw Humanoid Player
-      drawHumanoid();
+      // Draw Selected Hero
+      drawHero(selectedHeroIdx);
 
-      // Modern Glass HUD Badges
-      // 1. Score
-      drawGlassPill(20, 18, 150, 36, stage.secondary);
+      // HUD
+      drawGlassPill(20, 18, 140, 36, stage.secondary);
       ctx.fillStyle = stage.secondary;
       ctx.font = "bold 13px Consolas";
       ctx.fillText("SCORE", 35, 41);
       ctx.fillStyle = "#fff";
       ctx.font = "bold 16px Consolas";
-      ctx.fillText(String(Math.floor(score)).padStart(6, '0'), 82, 41);
+      ctx.fillText(String(Math.floor(score)).padStart(6, '0'), 80, 41);
 
-      // 2. Stage Progress Badge
-      drawGlassPill(180, 18, 160, 36, stage.accent);
+      // Hero Pill
+      drawGlassPill(170, 18, 100, 36, hero.accent);
+      ctx.fillStyle = hero.accent;
+      ctx.font = "bold 14px Consolas";
+      ctx.fillText(hero.name, 195, 41);
+
+      // Stage Pill
+      drawGlassPill(280, 18, 150, 36, stage.accent);
       ctx.fillStyle = stage.accent;
       ctx.font = "bold 12px Consolas";
-      ctx.fillText(`STAGE ${stage.id}`, 194, 32);
-      // Progress bar
+      ctx.fillText(`STAGE ${stage.id}`, 294, 32);
       ctx.fillStyle = "#221c32";
       ctx.beginPath();
-      ctx.roundRect(194, 38, 132, 6, 3);
+      ctx.roundRect(294, 38, 122, 6, 3);
       ctx.fill();
       ctx.fillStyle = stage.accent;
       ctx.beginPath();
-      ctx.roundRect(194, 38, Math.max(4, 132 * stageProgress), 6, 3);
+      ctx.roundRect(294, 38, Math.max(4, 122 * stageProgress), 6, 3);
       ctx.fill();
 
-      // 3. Coins
-      drawGlassPill(canvas.width / 2 - 55, 18, 110, 36, "#ffd700");
+      // Coins Pill
+      drawGlassPill(canvas.width / 2 + 30, 18, 105, 36, "#ffd700");
       ctx.fillStyle = "#ffd700";
-      ctx.beginPath();
-      ctx.arc(canvas.width / 2 - 35, 36, 8, 0, Math.PI * 2);
-      ctx.fill();
       ctx.font = "bold 16px Consolas";
-      ctx.fillText(`x ${coins}`, canvas.width / 2 - 18, 41);
+      ctx.fillText(`x ${coins}`, canvas.width / 2 + 65, 41);
 
-      // 4. Hi-Score
+      // Best
       drawGlassPill(canvas.width - 255, 18, 140, 36, "#ffb432");
       ctx.fillStyle = "#ffb432";
       ctx.font = "bold 13px Consolas";
@@ -857,13 +929,13 @@
       ctx.font = "bold 15px Consolas";
       ctx.fillText(String(Math.floor(highScore)).padStart(6, '0'), canvas.width - 198, 41);
 
-      // 5. Speed
+      // Speed
       drawGlassPill(canvas.width - 105, 18, 88, 36, stage.accent);
       ctx.fillStyle = stage.accent;
       ctx.font = "bold 14px Consolas";
       ctx.fillText(`${speed.toFixed(1)}x`, canvas.width - 75, 41);
 
-      // Stage Advancement Banner
+      // Banner
       if (bannerTimer > 0) {
         ctx.fillStyle = "rgba(16, 12, 32, 0.92)";
         ctx.beginPath();
@@ -872,7 +944,6 @@
         ctx.strokeStyle = stage.accent;
         ctx.lineWidth = 2;
         ctx.stroke();
-
         ctx.fillStyle = stage.accent;
         ctx.font = "bold 22px Consolas";
         ctx.textAlign = "center";
@@ -883,44 +954,89 @@
         ctx.textAlign = "left";
       }
 
-      // State Overlays
+      // MENU WITH HERO SELECTION
       if (state === "MENU") {
-        ctx.fillStyle = "rgba(10, 8, 22, 0.85)";
+        ctx.fillStyle = "rgba(10, 8, 22, 0.88)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = "rgba(18, 14, 34, 0.9)";
+
+        ctx.fillStyle = "rgba(18, 14, 34, 0.94)";
         ctx.beginPath();
-        ctx.roundRect(canvas.width / 2 - 250, canvas.height / 2 - 170, 500, 340, 16);
+        ctx.roundRect(canvas.width / 2 - 290, canvas.height / 2 - 200, 580, 410, 16);
         ctx.fill();
         ctx.strokeStyle = "rgba(0, 240, 255, 0.6)";
         ctx.lineWidth = 2;
         ctx.stroke();
 
         ctx.fillStyle = "#00f0ff";
-        ctx.font = "bold 38px Consolas";
+        ctx.font = "bold 36px Consolas";
         ctx.textAlign = "center";
-        ctx.fillText("PIXEL RUNNER", canvas.width / 2, canvas.height / 2 - 90);
+        ctx.fillText("PIXEL RUNNER", canvas.width / 2, canvas.height / 2 - 145);
         ctx.fillStyle = "#a59bc3";
-        ctx.font = "bold 14px Consolas";
-        ctx.fillText("MULTI-STAGE HUMAN EDITION", canvas.width / 2, canvas.height / 2 - 60);
+        ctx.font = "bold 13px Consolas";
+        ctx.fillText("SUBWAY HEROES EDITION • SELECT YOUR RUNNER", canvas.width / 2, canvas.height / 2 - 120);
 
+        // Character Showcase Box
+        ctx.fillStyle = "#18122a";
+        ctx.beginPath();
+        ctx.roundRect(canvas.width / 2 - 240, canvas.height / 2 - 100, 480, 115, 12);
+        ctx.fill();
+        ctx.strokeStyle = hero.accent;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Left Arrow
+        ctx.fillStyle = "#261c3e";
+        ctx.beginPath();
+        ctx.roundRect(canvas.width / 2 - 225, canvas.height / 2 - 60, 34, 34, 8);
+        ctx.fill();
+        ctx.fillStyle = hero.accent;
+        ctx.font = "bold 22px Consolas";
+        ctx.fillText("<", canvas.width / 2 - 208, canvas.height / 2 - 36);
+
+        // Right Arrow
+        ctx.fillStyle = "#261c3e";
+        ctx.beginPath();
+        ctx.roundRect(canvas.width / 2 + 191, canvas.height / 2 - 60, 34, 34, 8);
+        ctx.fill();
+        ctx.fillStyle = hero.accent;
+        ctx.fillText(">", canvas.width / 2 + 208, canvas.height / 2 - 36);
+
+        // Preview Model
+        drawHero(selectedHeroIdx, canvas.width / 2 - 120, canvas.height / 2 + 2);
+
+        // Hero Info
+        ctx.textAlign = "left";
+        ctx.fillStyle = hero.accent;
+        ctx.font = "bold 22px Consolas";
+        ctx.fillText(hero.name, canvas.width / 2 - 40, canvas.height / 2 - 65);
+
+        ctx.fillStyle = "#ffbe28";
+        ctx.font = "bold 12px Consolas";
+        ctx.fillText(hero.title, canvas.width / 2 - 40, canvas.height / 2 - 42);
+
+        ctx.fillStyle = "#a59bc3";
+        ctx.font = "12px Consolas";
+        ctx.fillText("Press [Q] or [E] to change hero", canvas.width / 2 - 40, canvas.height / 2 - 15);
+
+        // Play Button
         ctx.fillStyle = "#00f0ff";
         ctx.beginPath();
-        ctx.roundRect(canvas.width / 2 - 150, canvas.height / 2 - 25, 300, 46, 23);
+        ctx.roundRect(canvas.width / 2 - 150, canvas.height / 2 + 35, 300, 44, 22);
         ctx.fill();
         ctx.fillStyle = "#0c0a18";
         ctx.font = "bold 18px Consolas";
-        ctx.fillText("PRESS SPACE TO PLAY", canvas.width / 2, canvas.height / 2 + 4);
+        ctx.textAlign = "center";
+        ctx.fillText("PRESS SPACE TO PLAY", canvas.width / 2, canvas.height / 2 + 63);
 
         ctx.fillStyle = "#fff";
-        ctx.font = "14px Consolas";
-        ctx.fillText("SPACE / W : Jump (2x for Double Jump!)", canvas.width / 2, canvas.height / 2 + 65);
-        ctx.fillText("DOWN / S : Low Slide under drones", canvas.width / 2, canvas.height / 2 + 88);
+        ctx.font = "13px Consolas";
+        ctx.fillText("SPACE / W : Jump (2x for Double Jump!)", canvas.width / 2, canvas.height / 2 + 110);
+        ctx.fillText("DOWN / S : Low Slide under drones", canvas.width / 2, canvas.height / 2 + 132);
         ctx.textAlign = "left";
       } else if (state === "PAUSED") {
         ctx.fillStyle = "rgba(8, 6, 18, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#00f0ff";
+        ctx.fillStyle = hero.accent;
         ctx.font = "bold 36px Consolas";
         ctx.textAlign = "center";
         ctx.fillText("GAME PAUSED", canvas.width / 2, canvas.height / 2 - 20);
@@ -931,10 +1047,9 @@
       } else if (state === "GAMEOVER") {
         ctx.fillStyle = "rgba(22, 6, 16, 0.88)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
         ctx.fillStyle = "rgba(24, 10, 22, 0.95)";
         ctx.beginPath();
-        ctx.roundRect(canvas.width / 2 - 230, canvas.height / 2 - 160, 460, 320, 16);
+        ctx.roundRect(canvas.width / 2 - 230, canvas.height / 2 - 160, 460, 330, 16);
         ctx.fill();
         ctx.strokeStyle = "rgba(255, 75, 110, 0.7)";
         ctx.lineWidth = 2;
@@ -945,12 +1060,16 @@
         ctx.textAlign = "center";
         ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 95);
 
+        ctx.fillStyle = hero.accent;
+        ctx.font = "bold 15px Consolas";
+        ctx.fillText(`Runner: ${hero.name}`, canvas.width / 2, canvas.height / 2 - 62);
+
         ctx.fillStyle = "#fff";
         ctx.font = "bold 20px Consolas";
-        ctx.fillText(`Final Score: ${String(Math.floor(score)).padStart(6, '0')}`, canvas.width / 2, canvas.height / 2 - 40);
+        ctx.fillText(`Final Score: ${String(Math.floor(score)).padStart(6, '0')}`, canvas.width / 2, canvas.height / 2 - 32);
 
         ctx.fillStyle = "#ffd700";
-        ctx.fillText(`Best Score: ${String(Math.floor(highScore)).padStart(6, '0')}`, canvas.width / 2, canvas.height / 2 - 5);
+        ctx.fillText(`Best Score: ${String(Math.floor(highScore)).padStart(6, '0')}`, canvas.width / 2, canvas.height / 2 + 2);
 
         ctx.fillStyle = "#00f0ff";
         ctx.beginPath();
