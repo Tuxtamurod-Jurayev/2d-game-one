@@ -17,9 +17,11 @@ class SoundManager:
                 pygame.mixer.init(frequency=22050, size=-16, channels=1, buffer=512)
             self.enabled = True
             self.sound_jump = self._gen_jump()
+            self.sound_double_jump = self._gen_double_jump()
             self.sound_coin = self._gen_coin()
             self.sound_hit = self._gen_hit()
             self.sound_checkpoint = self._gen_checkpoint()
+            self.sound_stage_up = self._gen_stage_up()
         except Exception as e:
             print(f"[SoundManager] Audio initialization skipped or muted: {e}")
             self.enabled = False
@@ -43,12 +45,23 @@ class SoundManager:
         return pygame.mixer.Sound(buf)
 
     def _gen_jump(self):
-        # Pitch sweeps up 300Hz -> 750Hz
+        # Ground jump: Pitch sweeps up 320Hz -> 750Hz
         def wave_func(t, dur):
             freq = 320 + (t / dur) * 450
             amp = 0.35 * (1.0 - t / dur)
             return amp * math.sin(2 * math.pi * freq * t)
         return self._create_sound(wave_func, duration=0.15)
+
+    def _gen_double_jump(self):
+        # Energetic double jump: Two-phase upward burst 450Hz -> 1050Hz
+        def wave_func(t, dur):
+            freq = 450 + (t / dur) * 600
+            # Layer a sine wave with a harmonic overtone
+            base = math.sin(2 * math.pi * freq * t)
+            harmonic = 0.4 * math.sin(4 * math.pi * freq * t)
+            amp = 0.38 * (1.0 - t / dur)
+            return amp * (base + harmonic)
+        return self._create_sound(wave_func, duration=0.20)
 
     def _gen_coin(self):
         # Two-tone chime 980Hz and 1318Hz (B5 -> E6)
@@ -80,9 +93,25 @@ class SoundManager:
             return amp * math.sin(2 * math.pi * freq * t)
         return self._create_sound(wave_func, duration=0.32)
 
+    def _gen_stage_up(self):
+        # Epic triumphal stage advancement fanfare
+        def wave_func(t, dur):
+            notes = [440.0, 554.37, 659.25, 880.0, 1108.73] # A4, C#5, E5, A5, C#6
+            segment = dur / len(notes)
+            idx = min(int(t / segment), len(notes) - 1)
+            freq = notes[idx]
+            seg_t = t % segment
+            amp = 0.42 * (1.0 - seg_t / segment)
+            return amp * math.sin(2 * math.pi * freq * t)
+        return self._create_sound(wave_func, duration=0.45)
+
     def play_jump(self):
         if self.enabled:
             self.sound_jump.play()
+
+    def play_double_jump(self):
+        if self.enabled:
+            self.sound_double_jump.play()
 
     def play_coin(self):
         if self.enabled:
@@ -95,3 +124,7 @@ class SoundManager:
     def play_checkpoint(self):
         if self.enabled:
             self.sound_checkpoint.play()
+
+    def play_stage_up(self):
+        if self.enabled:
+            self.sound_stage_up.play()

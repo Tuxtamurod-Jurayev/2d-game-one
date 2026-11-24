@@ -1,13 +1,18 @@
 """
-Main Game Controller for Pixel Runner (Modern Edition).
-Structured State Machine: MENU -> PLAYING -> PAUSED -> GAME_OVER.
-Optimized for 60 FPS gameplay, responsive input, and dynamic effects.
+Main Game Controller for Pixel Runner (Multi-Stage Modern Edition).
+Features:
+- Structured State Machine: MENU -> PLAYING -> PAUSED -> GAME_OVER.
+- Double Jump system with acrobatic aerial somersault.
+- 4 Progressive Stages (Cyber Dawn -> Sunset Metropolis -> Neon Nightfall -> Apex Overdrive).
+- Reactive UI that dynamically changes its themes and banners on each stage.
+- 60 FPS smooth gameplay and zero-flicker background.
 """
 import random
 import pygame
 from src.settings import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS, TITLE,
-    INITIAL_SPEED, MAX_SPEED, SPEED_INCREMENT, GROUND_Y
+    INITIAL_SPEED, MAX_SPEED, SPEED_INCREMENT, GROUND_Y,
+    STAGES
 )
 from src.sound_synth import SoundManager
 from src.entities.player import Player, Particle
@@ -46,7 +51,13 @@ class Game:
         self.screen_shake = 0
         self.running = True
 
-        # Pre-allocated shake surface for high performance
+        # Stage Progression Tracking
+        self.current_stage_idx = 0
+        self.current_stage = STAGES[0]
+        self.stage_progress = 0.0
+        self.banner_timer = 0
+
+        # Shake surface
         self.shake_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def reset_game(self):
@@ -58,6 +69,10 @@ class Game:
         self.speed = INITIAL_SPEED
         self.spawn_timer = 0
         self.screen_shake = 0
+        self.current_stage_idx = 0
+        self.current_stage = STAGES[0]
+        self.stage_progress = 0.0
+        self.banner_timer = 0
         self.state = self.STATE_PLAYING
 
     def handle_events(self):
@@ -72,6 +87,7 @@ class Game:
 
                 elif self.state == self.STATE_PLAYING:
                     if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+                        # Triggers 1st jump from ground OR 2nd higher double-jump in air!
                         self.player.jump(self.sound_mgr)
                     elif event.key == pygame.K_ESCAPE:
                         self.state = self.STATE_PAUSED
@@ -84,18 +100,52 @@ class Game:
                     if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_RETURN):
                         self.reset_game()
 
+            elif event.type == pygame.KEYUP:
+                if self.state == self.STATE_PLAYING:
+                    if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+                        # Variable jump height: release early for short hop
+                        self.player.cut_jump()
+
+    def update_stage_progression(self):
+        """Monitors current score, triggers stage level-up fanfare, and updates active theme."""
+        score = self.score_mgr.current_score
+        new_stage_idx = 0
+        for i, stg in enumerate(STAGES):
+            if score >= stg["threshold"]:
+                new_stage_idx = i
+
+        # Calculate progress towards next stage
+        stg = STAGES[new_stage_idx]
+        cur_thresh = stg["threshold"]
+        next_thresh = stg["next_threshold"]
+        if next_thresh >= 999999:
+            self.stage_progress = 1.0
+        else:
+            self.stage_progress = (score - cur_thresh) / float(next_thresh - cur_thresh)
+
+        # Check for stage advancement
+        if new_stage_idx > self.current_stage_idx:
+            self.current_stage_idx = new_stage_idx
+            self.current_stage = STAGES[new_stage_idx]
+            self.banner_timer = 170  # Display banner for ~2.8 seconds
+            self.sound_mgr.play_stage_up()
+            # Slight speed boost when mastering a stage
+            self.speed = min(MAX_SPEED, self.speed + 0.6)
+
+        if self.banner_timer > 0:
+            self.banner_timer -= 1
+
     def spawn_entities(self):
         self.spawn_timer += 1
-        # Dynamic spawn cadence based on speed
-        min_spawn_interval = max(50, int(105 - (self.speed - INITIAL_SPEED) * 5.2))
+        min_spawn_interval = max(45, int(105 - (self.speed - INITIAL_SPEED) * 5.2))
         
         if self.spawn_timer >= min_spawn_interval:
             self.spawn_timer = 0
             
             # 75% Obstacle spawn, 25% Coin pattern
             if random.random() < 0.75:
-                # Drone spawns once speed exceeds 8.2
-                if self.speed > 8.2 and random.random() < 0.38:
+                # Drone spawns once speed exceeds 8.0
+                if self.speed > 8.0 and random.random() < 0.40:
                     obs_type = Obstacle.TYPE_FLYING_DRONE
                 else:
                     obs_type = random.choice([
@@ -106,7 +156,7 @@ class Game:
                 self.obstacles.append(Obstacle(obs_type, SCREEN_WIDTH + 50))
             else:
                 # Spawn coin arc or row
-                coin_y = GROUND_Y - 35 if random.random() < 0.55 else GROUND_Y - 85
+                coin_y = GROUND_Y - 35 if random.random() < 0.55 else GROUND_Y - 95
                 count = random.randint(3, 4)
                 for i in range(count):
                     self.coins.append(Coin(SCREEN_WIDTH + 50 + i * 36, coin_y))
@@ -125,10 +175,10 @@ class Game:
         # Score increments with distance
         self.score_mgr.add_score(self.speed * 0.1)
 
-        # Milestone chime every 1000 points
-        if int(self.score_mgr.current_score) > 0 and int(self.score_mgr.current_score) % 1000 < 5:
-            self.sound_mgr.play_checkpoint()
+        # Update stage progression and stage-reactive UI
+        self.update_stage_progression()
 
+        # Update background
         self.background.update(self.speed)
         self.spawn_entities()
 
@@ -153,13 +203,12 @@ class Game:
                 self.score_mgr.add_coin()
                 self.sound_mgr.play_coin()
 
-                # Golden pickup sparkle burst
                 for _ in range(8):
                     self.coin_sparkles.append(Particle(
                         coin.x, coin.y,
                         random.uniform(-3, 3),
                         random.uniform(-3, 3),
-                        random.choice([(255, 235, 80), (255, 255, 200), (0, 240, 255)]),
+                        random.choice([(255, 235, 80), (255, 255, 200), self.current_stage["accent"]]),
                         random.uniform(3, 6),
                         lifetime=18,
                         decay_rate=0.25
@@ -177,14 +226,13 @@ class Game:
             self.screen_shake -= 1
 
     def draw(self):
-        # Determine render target
         if self.screen_shake > 0:
             target_surf = self.shake_surface
         else:
             target_surf = self.screen
 
-        # 1. Background
-        self.background.draw(target_surf)
+        # 1. Background (adapts dynamically to current stage palette)
+        self.background.draw(target_surf, stage=self.current_stage)
 
         # 2. Coins
         for coin in self.coins:
@@ -201,8 +249,15 @@ class Game:
         # 5. Humanoid Player
         self.player.draw(target_surf)
 
-        # 6. Modern HUD
-        self.hud.draw(target_surf, self.score_mgr, self.speed)
+        # 6. Stage-Reactive Modern HUD
+        self.hud.draw(
+            target_surf,
+            self.score_mgr,
+            self.speed,
+            stage=self.current_stage,
+            stage_progress=self.stage_progress,
+            banner_timer=self.banner_timer
+        )
 
         # 7. State Overlays
         if self.state == self.STATE_MENU:
@@ -217,7 +272,7 @@ class Game:
                 self.score_mgr.coins
             )
 
-        # Apply screen shake blit if active
+        # Blit shake if active
         if self.screen_shake > 0:
             ox = random.randint(-self.screen_shake, self.screen_shake)
             oy = random.randint(-self.screen_shake, self.screen_shake)

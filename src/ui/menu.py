@@ -77,9 +77,9 @@ class Menu:
         ctrl_y = card_rect.y + 195
         pygame.draw.line(surface, (50, 40, 80), (card_rect.x + 30, ctrl_y), (card_rect.right - 30, ctrl_y), 1)
 
-        # Control Row 1: Jump
+        # Control Row 1: Jump & Double Jump
         self._draw_key_badge(surface, card_rect.x + 60, ctrl_y + 15, "SPACE / W", width=95)
-        txt_jump = self.font_body.render("Jump & Vault over spikes", True, COLOR_TEXT_MAIN)
+        txt_jump = self.font_body.render("Jump (Press 2x for Double Jump!)", True, COLOR_TEXT_MAIN)
         surface.blit(txt_jump, (card_rect.x + 175, ctrl_y + 19))
 
         # Control Row 2: Slide
