@@ -206,6 +206,9 @@
       jumpCount: 0,
       isDoubleJumping: false,
       flipAngle: 0,
+      squashY: 0,
+      stretchY: 0,
+      somersaultTrail: [],
       tick: 0,
       particles: []
     };
@@ -321,12 +324,26 @@
             player.isGrounded = false;
             player.jumpCount = 1;
             player.isDoubleJumping = false;
+            player.stretchY = 6.0;
+            player.squashY = 0.0;
             playBeep(320, "square", 0.15, 750);
+            for (let i = 0; i < 7; i++) {
+              player.particles.push({
+                x: player.x + (Math.random() - 0.5) * 16,
+                y: player.y - 2,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -(Math.random() * 2 + 0.2),
+                color: "#c8d2e6",
+                size: Math.random() * 3 + 2,
+                life: 16
+              });
+            }
           } else if (player.jumpCount < 2) {
             player.vy = DOUBLE_JUMP_FORCE;
             player.jumpCount = 2;
             player.isDoubleJumping = true;
             player.flipAngle = 0;
+            player.stretchY = 8.0;
             playBeep(450, "sine", 0.22, 1100);
             player.particles.push({
               x: player.x,
@@ -338,6 +355,17 @@
               color: HEROES[selectedHeroIdx].accent,
               life: 20
             });
+            for (let i = 0; i < 10; i++) {
+              player.particles.push({
+                x: player.x + (Math.random() - 0.5) * 12,
+                y: player.y - 6,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 5,
+                color: Math.random() < 0.5 ? HEROES[selectedHeroIdx].accent : "#ffffff",
+                size: Math.random() * 3 + 2,
+                life: 18
+              });
+            }
           }
         }
       } else if (e.code === "KeyQ" || e.code === "ArrowLeft") {
@@ -388,6 +416,22 @@
       player.y += player.vy;
 
       if (player.y >= GROUND_Y) {
+        if (!player.isGrounded) {
+          const impact = Math.min(8.0, Math.abs(player.vy) * 0.45);
+          player.squashY = Math.max(3.0, impact);
+          player.stretchY = 0.0;
+          for (let i = 0; i < 6; i++) {
+            player.particles.push({
+              x: player.x + (Math.random() - 0.5) * 14,
+              y: GROUND_Y - 2,
+              vx: (Math.random() - 0.5) * 4,
+              vy: -(Math.random() * 1.5 + 0.3),
+              color: "#c0cce0",
+              size: Math.random() * 3 + 2,
+              life: 14
+            });
+          }
+        }
         player.y = GROUND_Y;
         player.vy = 0;
         player.isGrounded = true;
@@ -396,13 +440,27 @@
         player.flipAngle = 0;
       }
 
+      if (player.squashY > 0.1) player.squashY *= 0.72; else player.squashY = 0;
+      if (player.stretchY > 0.1) player.stretchY *= 0.75; else player.stretchY = 0;
+
       if (player.isDoubleJumping && !player.isGrounded) {
-        player.flipAngle += 22;
-        if (player.flipAngle >= 360) {
-          player.flipAngle = 0;
+        player.flipAngle += 24.0;
+        if (player.somersaultTrail.length < 3) {
+          player.somersaultTrail.push({
+            x: player.x,
+            y: player.y - 28,
+            angle: player.flipAngle,
+            alpha: 1.0
+          });
+        }
+        if (player.flipAngle >= 360.0) {
+          player.flipAngle = 0.0;
           player.isDoubleJumping = false;
         }
       }
+
+      player.somersaultTrail.forEach(t => t.alpha -= 0.25);
+      player.somersaultTrail = player.somersaultTrail.filter(t => t.alpha > 0);
 
       if (speed < 16.5) speed += 0.0016;
       score += speed * 0.1;
@@ -571,150 +629,320 @@
       const curY = customY !== undefined ? customY : player.y;
       const cycle = player.tick;
 
-      // Ground Shadow
+      // 1. Ground Shadow with Altitude Scaling
       const alt = Math.max(0, GROUND_Y - curY);
-      const shScale = Math.max(0.2, 1.0 - alt / 260.0);
+      const shScale = Math.max(0.18, 1.0 - alt / 260.0);
       ctx.fillStyle = `rgba(0, 0, 0, ${0.45 * shScale})`;
       ctx.beginPath();
-      ctx.ellipse(hipX, GROUND_Y, 24 * shScale, 6 * shScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(hipX, GROUND_Y, 26 * shScale, 7 * shScale, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      // 2. Somersault Motion Ghost Trails
+      if (customX === undefined) {
+        player.somersaultTrail.forEach(t => {
+          ctx.strokeStyle = hero.accent;
+          ctx.globalAlpha = t.alpha * 0.45;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 20, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+        });
+      }
+
+      // 3. Slide Pose
       if (customX === undefined && player.isDucking) {
-        // Slide pose
         const slideY = curY - 10;
-        ctx.fillStyle = hero.accent;
-        ctx.beginPath();
-        ctx.roundRect(hipX - 18, slideY - 14, 22, 14, 4);
-        ctx.fill();
-        ctx.fillStyle = hero.skin;
-        ctx.beginPath();
-        ctx.arc(hipX - 22, slideY - 14, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#222636";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(hipX + 2, slideY - 4);
-        ctx.lineTo(hipX + 28, slideY - 1);
-        ctx.stroke();
+        const headX = hipX - 22, headY = slideY - 14;
+
+        if (hero.id === "jake") {
+          ctx.fillStyle = "#e6e6eb";
+          ctx.beginPath(); ctx.roundRect(hipX - 18, slideY - 14, 22, 14, 4); ctx.fill();
+          ctx.fillStyle = "#376eb9";
+          ctx.beginPath(); ctx.roundRect(hipX - 16, slideY - 14, 18, 14, 3); ctx.fill();
+          // Drawstring sway
+          ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(hipX - 4, slideY - 7); ctx.lineTo(hipX - 8, slideY - 3); ctx.stroke();
+          // Head & Cap
+          ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(headX - 1, headY - 2, 7, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#eb2d37"; ctx.fillRect(headX - 8, headY - 5, 8, 4);
+          // Legs
+          ctx.strokeStyle = "#26375f"; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(hipX + 2, slideY - 4); ctx.lineTo(hipX + 28, slideY - 1); ctx.stroke();
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(hipX + 24, slideY - 4, 12, 6, 2); ctx.fill();
+          ctx.fillStyle = "#32d750"; ctx.fillRect(hipX + 24, slideY - 4, 4, 6);
+        } else if (hero.id === "tricky") {
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath(); ctx.roundRect(hipX - 18, slideY - 14, 18, 12, 4); ctx.fill();
+          ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#eb2832"; ctx.beginPath(); ctx.arc(headX - 1, headY - 3, 8, 0, Math.PI * 2); ctx.fill();
+          // Pigtails streaming backwards
+          ctx.fillStyle = "#fcde62";
+          ctx.beginPath(); ctx.ellipse(headX - 14, headY - 2, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#4682c8"; ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.moveTo(hipX + 2, slideY - 4); ctx.lineTo(hipX + 28, slideY - 1); ctx.stroke();
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(hipX + 24, slideY - 4, 12, 6, 2); ctx.fill();
+        } else if (hero.id === "fresh") {
+          ctx.fillStyle = "#2dd74b";
+          ctx.beginPath(); ctx.roundRect(hipX - 18, slideY - 14, 20, 14, 4); ctx.fill();
+          ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#161010"; ctx.beginPath(); ctx.roundRect(headX - 14, headY - 6, 10, 12, 2); ctx.fill();
+          ctx.strokeStyle = "#eb2d37"; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(hipX + 2, slideY - 4); ctx.lineTo(hipX + 16, slideY - 2); ctx.stroke();
+          ctx.strokeStyle = hero.skin; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.moveTo(hipX + 16, slideY - 2); ctx.lineTo(hipX + 26, slideY - 1); ctx.stroke();
+          ctx.fillStyle = "#a0412d"; ctx.beginPath(); ctx.roundRect(hipX + 24, slideY - 4, 12, 6, 2); ctx.fill();
+        } else if (hero.id === "yutani") {
+          ctx.fillStyle = "#7dd737";
+          ctx.beginPath(); ctx.roundRect(hipX - 18, slideY - 14, 22, 14, 6); ctx.fill();
+          ctx.beginPath(); ctx.arc(headX, headY, 11, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(headX - 4, headY - 10, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#19191e"; ctx.beginPath(); ctx.arc(headX - 4, headY - 10, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#7dd737"; ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.moveTo(hipX + 2, slideY - 4); ctx.lineTo(hipX + 28, slideY - 1); ctx.stroke();
+          ctx.fillStyle = "#b93cfa"; ctx.beginPath(); ctx.roundRect(hipX + 24, slideY - 4, 12, 6, 2); ctx.fill();
+        }
         return;
       }
 
+      // 4. Double Jump Somersault Rotation
       if (customX === undefined && player.isDoubleJumping) {
         ctx.save();
         ctx.translate(hipX, curY - 28);
         ctx.rotate((-player.flipAngle * Math.PI) / 180);
         ctx.fillStyle = hero.accent;
-        ctx.beginPath();
-        ctx.roundRect(-8, -10, 16, 18, 4);
-        ctx.fill();
+        ctx.beginPath(); ctx.roundRect(-8, -10, 16, 18, 4); ctx.fill();
         ctx.fillStyle = hero.skin;
-        ctx.beginPath();
-        ctx.arc(4, -18, 8, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(4, -18, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = hero.id === "tricky" ? "#eb2832" : (hero.id === "fresh" ? "#161010" : (hero.id === "yutani" ? "#7dd737" : "#eb2d37"));
+        ctx.beginPath(); ctx.arc(4, -22, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#28324b"; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(-4, 4); ctx.lineTo(8, 14); ctx.lineTo(-2, 18); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(-4, 16, 9, 5, 2); ctx.fill();
         ctx.restore();
         return;
       }
 
+      // 5. Kinematic Running Dynamics & Squash/Stretch
       const isAir = customX === undefined && !player.isGrounded;
       const bob = isAir ? 0 : Math.sin(cycle * 2.0) * 2.5;
-      const hipY = curY - 28 + bob;
-      const leg1Angle = isAir ? 0.6 : Math.sin(cycle) * 0.75;
-      const leg2Angle = isAir ? -0.5 : Math.sin(cycle + Math.PI) * 0.75;
+      const squash = customX === undefined ? player.squashY : 0;
+      const stretch = customX === undefined ? player.stretchY : 0;
+      const hipY = curY - 28 + bob + squash - stretch;
+      const leg1Angle = isAir ? 0.58 : Math.sin(cycle) * 0.76;
+      const leg2Angle = isAir ? -0.48 : Math.sin(cycle + Math.PI) * 0.76;
 
-      // Legs
-      function drawSimpleLeg(angle, color) {
-        const thigh = 14, shin = 14;
-        const kneeBend = angle > 0 ? Math.sin(angle) * 0.4 : -Math.sin(angle) * 0.8;
-        const kx = hipX + Math.sin(angle) * thigh;
-        const ky = hipY + Math.cos(angle) * thigh;
-        const fx = kx + Math.sin(angle - kneeBend * 0.5) * shin;
-        const fy = Math.min(ky + Math.cos(angle - kneeBend * 0.5) * shin, GROUND_Y);
+      function drawLimb(hx, hy, angle, upperLen, lowerLen, upperCol, lowerCol, isArm, shoeAccent, isBaggy) {
+        if (isArm) {
+          const elbowAngle = angle + 0.35;
+          const ex = hx + Math.sin(angle) * upperLen;
+          const ey = hy + Math.cos(angle) * upperLen;
+          const fx = ex + Math.sin(elbowAngle) * lowerLen;
+          const fy = ey + Math.cos(elbowAngle) * lowerLen;
+          ctx.strokeStyle = upperCol; ctx.lineWidth = 5; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
+          ctx.strokeStyle = lowerCol; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(fx, fy); ctx.stroke();
+          ctx.fillStyle = lowerCol; ctx.beginPath(); ctx.arc(fx, fy, 2.5, 0, Math.PI * 2); ctx.fill();
+        } else {
+          const kneeBend = Math.max(0.0, -Math.sin(angle - 0.4) * 1.35);
+          const kx = hx + Math.sin(angle) * upperLen;
+          const ky = hy + Math.cos(angle) * upperLen;
+          const fx = kx + Math.sin(angle - kneeBend * 0.5) * lowerLen;
+          const fy = Math.min(ky + Math.cos(angle - kneeBend * 0.5) * lowerLen, GROUND_Y);
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(hipX, hipY);
-        ctx.lineTo(kx, ky);
-        ctx.lineTo(fx, fy);
-        ctx.stroke();
+          const thick = isBaggy ? 7 : 6;
+          ctx.strokeStyle = upperCol; ctx.lineWidth = thick; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
 
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(fx - 3, fy - 6, 10, 6);
+          // Sneaker
+          ctx.fillStyle = lowerCol;
+          ctx.beginPath(); ctx.roundRect(fx - 3, fy - 6, 11, 6, 2); ctx.fill();
+          if (shoeAccent) {
+            ctx.fillStyle = shoeAccent;
+            ctx.fillRect(fx + 2, fy - 6, 3, 6);
+          }
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(fx - 3, fy - 2, 11, 2);
+        }
       }
 
-      const pantsColor = hero.id === "tricky" ? "#4682c8" : (hero.id === "fresh" ? "#eb2d37" : (hero.id === "yutani" ? "#7dd737" : "#26375f"));
-      drawSimpleLeg(leg2Angle, pantsColor);
+      function drawFreshLeg(hx, hy, angle) {
+        const thighLen = 14, shinLen = 14;
+        const kneeBend = Math.max(0.0, -Math.sin(angle - 0.4) * 1.35);
+        const kx = hx + Math.sin(angle) * thighLen;
+        const ky = hy + Math.cos(angle) * thighLen;
+        const fx = kx + Math.sin(angle - kneeBend * 0.5) * shinLen;
+        const fy = Math.min(ky + Math.cos(angle - kneeBend * 0.5) * shinLen, GROUND_Y);
 
-      // Torso
-      ctx.fillStyle = hero.id === "tricky" ? "#fff" : (hero.id === "fresh" ? "#2dd74b" : (hero.id === "yutani" ? "#7dd737" : "#376eb9"));
-      ctx.beginPath();
-      ctx.roundRect(hipX - 8, hipY - 20, 16, 20, 4);
-      ctx.fill();
+        ctx.strokeStyle = "#eb2d37"; ctx.lineWidth = 6; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.sin(angle) * 9, hy + Math.cos(angle) * 9); ctx.stroke();
 
-      // Head
-      const headX = hipX + 4;
-      const headY = hipY - 30;
-      ctx.fillStyle = hero.skin;
-      ctx.beginPath();
-      ctx.arc(headX, headY, 9, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.strokeStyle = hero.skin; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(hx + Math.sin(angle) * 9, hy + Math.cos(angle) * 9); ctx.lineTo(kx, ky); ctx.stroke();
 
-      // Character-specific Head Accessories
+        const midX = kx + (fx - kx) * 0.4, midY = ky + (fy - ky) * 0.4;
+        ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(midX, midY); ctx.stroke();
+
+        ctx.strokeStyle = "#fafafa"; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(midX, midY); ctx.lineTo(fx, fy); ctx.stroke();
+
+        ctx.fillStyle = "#eb2832"; ctx.beginPath(); ctx.arc(kx + (fx - kx) * 0.55, ky + (fy - ky) * 0.55, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#2dd74b"; ctx.beginPath(); ctx.arc(kx + (fx - kx) * 0.70, ky + (fy - ky) * 0.70, 2, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = "#a0412d"; ctx.beginPath(); ctx.roundRect(fx - 3, fy - 6, 11, 6, 2); ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(fx - 3, fy - 2, 11, 2);
+      }
+
+      // 6. Character-Specific Renderings
       if (hero.id === "jake") {
-        // Jake White/Red Cap
-        ctx.fillStyle = "#fff";
-        ctx.beginPath();
-        ctx.arc(headX, headY - 3, 9, Math.PI, 0);
-        ctx.fill();
-        ctx.fillStyle = "#eb2d37";
-        ctx.fillRect(headX - 11, headY - 6, 8, 4); // Back visor
+        // Jake
+        drawLimb(hipX - 2, hipY - 14, -leg1Angle * 0.85, 11, 10, "#e6e6eb", hero.skin, true);
+        drawLimb(hipX - 3, hipY, leg2Angle, 14, 14, "#26375f", "#ffffff", false, "#32d750");
+
+        // Torso: Grey Hoodie + Denim Vest
+        ctx.fillStyle = "#e6e6eb";
+        ctx.beginPath(); ctx.roundRect(hipX - 8, hipY - 20, 16, 20, 4); ctx.fill();
+        ctx.fillStyle = "#376eb9";
+        ctx.beginPath(); ctx.roundRect(hipX - 7, hipY - 18, 14, 18, 3); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(hipX, hipY - 18); ctx.lineTo(hipX, hipY); ctx.stroke();
+        ctx.fillStyle = "#2d5a9b";
+        ctx.fillRect(hipX - 5, hipY - 14, 3, 3); ctx.fillRect(hipX + 2, hipY - 14, 3, 3);
+
+        // Swaying Drawstrings
+        const sway = Math.sin(cycle * 2.0) * 2.2;
+        ctx.strokeStyle = "#cdcdcf"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(hipX - 2, hipY - 16); ctx.lineTo(hipX - 3 + sway, hipY - 9); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hipX + 2, hipY - 16); ctx.lineTo(hipX + 1 - sway, hipY - 9); ctx.stroke();
+
+        // Head & Backwards Cap
+        const headX = hipX + 4, headY = hipY - 31;
+        ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(headX, headY - 3, 9, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = "#eb2d37"; ctx.fillRect(headX - 11, headY - 6, 8, 4);
+        ctx.fillStyle = "#326eb9"; ctx.beginPath(); ctx.arc(headX + 2, headY - 8, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#342218"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(headX + 1, headY - 5, 4, 0, Math.PI); ctx.stroke();
+        ctx.fillStyle = "#141428"; ctx.fillRect(headX + 4, headY - 2, 3, 3);
+
+        drawLimb(hipX + 3, hipY, leg1Angle, 14, 14, "#26375f", "#ffffff", false, "#32d750");
+        drawLimb(hipX + 2, hipY - 14, -leg2Angle * 0.85, 11, 10, "#e6e6eb", hero.skin, true);
+
       } else if (hero.id === "tricky") {
-        // Red Beanie & Blonde Pigtails
-        ctx.fillStyle = "#eb2832";
-        ctx.beginPath();
-        ctx.ellipse(headX, headY - 5, 9, 7, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Tricky
+        drawLimb(hipX - 2, hipY - 14, -leg1Angle * 0.85, 10, 9, hero.skin, hero.skin, true);
+        drawLimb(hipX - 3, hipY, leg2Angle, 14, 14, "#4682c8", "#ffffff", false, "#eb2832", true);
+
+        // Crop top + Midriff + Belt
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.roundRect(hipX - 7, hipY - 19, 14, 10, 3); ctx.fill();
+        ctx.fillStyle = hero.skin; ctx.fillRect(hipX - 6, hipY - 9, 12, 5);
+        ctx.fillStyle = "#1e1e23"; ctx.fillRect(hipX - 7, hipY - 4, 14, 3);
+
+        // Head, Beanie & Spring Pigtails
+        const headX = hipX + 3, headY = hipY - 30;
+        ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 9, 0, Math.PI * 2); ctx.fill();
+
+        const pBounce = Math.sin(cycle * 2.5) * 3.5;
         ctx.fillStyle = "#fcde62";
-        ctx.beginPath();
-        ctx.arc(headX - 9, headY - 2, 5, 0, Math.PI * 2);
-        ctx.arc(headX + 5, headY + 2, 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(headX - 13 + pBounce * 0.6, headY - 4 + pBounce, 5.5, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(headX + 4, headY + 1 - pBounce * 0.5, 4, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = "#eb2832"; ctx.beginPath(); ctx.ellipse(headX, headY - 6, 8.5, 6.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#d21e28"; ctx.beginPath(); ctx.roundRect(headX - 8, headY - 6, 16, 4, 2); ctx.fill();
+
+        // Nerd Glasses + Glint
+        ctx.strokeStyle = "#0f0f14"; ctx.lineWidth = 1.8;
+        ctx.strokeRect(headX + 1, headY - 3, 8, 6);
+        ctx.fillStyle = "#141428"; ctx.fillRect(headX + 4, headY - 2, 3, 3);
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(headX + 2, headY - 2); ctx.lineTo(headX + 3, headY + 1); ctx.stroke();
+
+        drawLimb(hipX + 3, hipY, leg1Angle, 14, 14, "#4682c8", "#ffffff", false, "#eb2832", true);
+        drawLimb(hipX + 2, hipY - 14, -leg2Angle * 0.85, 10, 9, hero.skin, hero.skin, true);
+
       } else if (hero.id === "fresh") {
-        // High-Top Fade Hair
-        ctx.fillStyle = "#161010";
-        ctx.fillRect(headX - 7, headY - 22, 14, 15);
+        // Fresh
+        drawLimb(hipX - 2, hipY - 14, -leg1Angle * 0.85, 11, 10, hero.skin, hero.skin, true);
+        drawFreshLeg(hipX - 3, hipY, leg2Angle);
+
+        // Green Tank Top
+        ctx.fillStyle = "#2dd74b";
+        ctx.beginPath(); ctx.roundRect(hipX - 7, hipY - 19, 14, 18, 4); ctx.fill();
+        ctx.strokeStyle = "#ffe650"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(hipX, hipY - 19, 4, 0, Math.PI); ctx.stroke();
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+        ctx.strokeRect(hipX - 2, hipY - 12, 4, 6);
+
+        // High-Top Fade Hair & Glasses
+        const headX = hipX + 4, headY = hipY - 30;
+        ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX, headY, 9, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = "#161010"; ctx.beginPath(); ctx.roundRect(headX - 7, headY - 23, 14, 16, 2); ctx.fill();
+        ctx.fillStyle = "#2d201c"; ctx.fillRect(headX - 7, headY - 12, 4, 6);
+        ctx.strokeStyle = "#372823"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(headX - 7, headY - 21); ctx.lineTo(headX + 7, headY - 21); ctx.stroke();
+
+        // Earring
+        ctx.fillStyle = "#f0f0f5"; ctx.beginPath(); ctx.arc(headX - 5, headY + 2, 2, 0, Math.PI * 2); ctx.fill();
+
+        // Glasses
+        ctx.strokeStyle = "#0f0f14"; ctx.lineWidth = 1.8;
+        ctx.strokeRect(headX + 1, headY - 4, 8, 6);
+        ctx.fillStyle = "#fff"; ctx.fillRect(headX + 3, headY - 3, 4, 3);
+        ctx.fillStyle = "#141428"; ctx.fillRect(headX + 5, headY - 3, 2, 3);
+
+        drawFreshLeg(hipX + 3, hipY, leg1Angle);
+        drawLimb(hipX + 2, hipY - 14, -leg2Angle * 0.85, 11, 10, hero.skin, hero.skin, true);
+
       } else if (hero.id === "yutani") {
-        // Alien Monster Onesie Hood & Giant Eyes
+        // Yutani (4 Arms + Alien Suit)
+        drawLimb(hipX - 2, hipY - 16, -leg1Angle * 0.85, 10, 9, "#7dd737", "#7dd737", true);
+        drawLimb(hipX - 4, hipY - 10, -leg1Angle * 0.65 - 0.45, 8, 7, "#5fb423", "#5fb423", true);
+        drawLimb(hipX - 3, hipY, leg2Angle, 14, 14, "#7dd737", "#b93cfa", false);
+
+        // Green Onesie Body
         ctx.fillStyle = "#7dd737";
-        ctx.beginPath();
-        ctx.arc(headX, headY, 11, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#f5cdb4";
-        ctx.beginPath();
-        ctx.arc(headX + 2, headY + 1, 7, 0, Math.PI * 2);
-        ctx.fill();
-        // Big cartoon eyes on hood
+        ctx.beginPath(); ctx.roundRect(hipX - 8, hipY - 20, 16, 20, 6); ctx.fill();
+        ctx.fillStyle = "#a0eb5f";
+        ctx.beginPath(); ctx.ellipse(hipX, hipY - 10, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+        // Purple Buns & Green Monster Hood
+        const headX = hipX + 3, headY = hipY - 30;
+        ctx.fillStyle = "#1e1923"; ctx.beginPath(); ctx.arc(headX - 9, headY - 4, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#b93cfa"; ctx.beginPath(); ctx.arc(headX - 9, headY - 6, 3, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = "#7dd737"; ctx.beginPath(); ctx.arc(headX, headY, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = hero.skin; ctx.beginPath(); ctx.arc(headX + 2, headY + 1, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#141423"; ctx.fillRect(headX + 4, headY, 3, 3);
+        ctx.strokeStyle = "#be4646"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(headX + 2, headY + 3, 3, 0, Math.PI); ctx.stroke();
+
+        // Big Cartoon Eyes
+        const eye1X = headX - 5, eye1Y = headY - 11;
+        const eye2X = headX + 4, eye2Y = headY - 11;
         ctx.fillStyle = "#fff";
-        ctx.beginPath();
-        ctx.arc(headX - 4, headY - 10, 5, 0, Math.PI * 2);
-        ctx.arc(headX + 5, headY - 10, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#1a1a24";
-        ctx.beginPath();
-        ctx.arc(headX - 4, headY - 10, 2.5, 0, Math.PI * 2);
-        ctx.arc(headX + 5, headY - 10, 2.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(eye1X, eye1Y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eye2X, eye2Y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#19191e";
+        ctx.beginPath(); ctx.arc(eye1X, eye1Y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eye2X, eye2Y, 3, 0, Math.PI * 2); ctx.fill();
+
+        // Wiggly Antennae
+        const aWiggle = Math.sin(cycle * 3.0) * 3;
+        ctx.strokeStyle = "#5fb423"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(eye1X - 2, eye1Y - 5); ctx.lineTo(eye1X - 4 + aWiggle, eye1Y - 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(eye2X + 2, eye2Y - 5); ctx.lineTo(eye2X + 4 - aWiggle, eye2Y - 10); ctx.stroke();
+        ctx.fillStyle = "#b4ff5a";
+        ctx.beginPath(); ctx.arc(eye1X - 4 + aWiggle, eye1Y - 10, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eye2X + 4 - aWiggle, eye2Y - 10, 2.5, 0, Math.PI * 2); ctx.fill();
+
+        drawLimb(hipX + 3, hipY, leg1Angle, 14, 14, "#7dd737", "#b93cfa", false);
+        drawLimb(hipX + 2, hipY - 16, -leg2Angle * 0.85, 10, 9, "#7dd737", "#7dd737", true);
+        drawLimb(hipX + 4, hipY - 10, -leg2Angle * 0.65 + 0.45, 8, 7, "#5fb423", "#5fb423", true);
       }
-
-      drawSimpleLeg(leg1Angle, pantsColor);
-
-      // Arm
-      ctx.strokeStyle = hero.accent;
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(hipX + 2, hipY - 14);
-      ctx.lineTo(hipX + 2 + Math.sin(-leg2Angle * 0.8) * 11, hipY - 4);
-      ctx.stroke();
     }
 
     function draw() {
@@ -1086,6 +1314,7 @@
     }
 
     function loop() {
+      if (state === "MENU") player.tick += 0.22;
       update();
       draw();
     }
